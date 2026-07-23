@@ -8,7 +8,8 @@ previews sample findings on Google Search ads it detects automatically while you
 
 - **Right-click, anywhere**: select any text on any page → "Check this Google ad" → a score, the
   Google Ads factor at play, and three rewritten alternatives, shown right on the page.
-- **Toolbar popup**: paste a headline manually, revisit your last 12 checks (stored locally only).
+- **Toolbar popup**: a static explainer of what Improve My Ads does and how to use the extension,
+  with a link straight into the full audit tool — no form, nothing stored.
 - **On-page ad detection (Google Search only)**: a best-effort heuristic scanner adds a "Grade
   this ad" button directly on Google Search ads it recognizes, pulling a free 2-finding preview
   across different lenses (behavioral psychology, platform & media buying, copywriting, offer,
@@ -19,7 +20,7 @@ previews sample findings on Google Search ads it detects automatically while you
 
 ## Architecture
 
-- `manifest.json` — Manifest V3. Permissions: `contextMenus`, `storage`, `scripting`, `activeTab`;
+- `manifest.json` — Manifest V3. Permissions: `contextMenus`, `scripting`, `activeTab`;
   `host_permissions` scoped to the Supabase functions domain only. `content_scripts.matches` is
   Google Search results pages only (across locales) — this extension is deliberately single-site
   now, not a generic multi-platform ad grader.
@@ -31,7 +32,7 @@ previews sample findings on Google Search ads it detects automatically while you
 - `content/ad-detector.js` — Google Search heuristic ad detection (see file header for the
   specific markers relied on, and the "best-effort, may need updates" caveat — Google doesn't
   expose a stable public "this is an ad" signal).
-- `popup/` — toolbar popup UI + local check history.
+- `popup/` — static toolbar popup (explainer + link to the full tool).
 - `welcome/welcome.html` — opened once on install.
 
 ## Backend
@@ -65,8 +66,8 @@ npm install
 npm test
 ```
 
-Covers `lib/api.js`'s pure logic: request validation, URL building (including the base64url items
-encoding used by the full-audit handoff), and the local history store. `lib/dom-extract.js`'s
+Covers `lib/api.js`'s pure logic: request validation and URL building (including the base64url
+items encoding used by the full-audit handoff). `lib/dom-extract.js`'s
 Google ad extraction logic is separately unit-tested in `tests/dom-extract.test.js`. The injected-
 card rendering in `background/service-worker.js` and the live DOM scanning in
 `content/ad-detector.js` are not unit-tested (they need a real page/DOM to verify meaningfully) —

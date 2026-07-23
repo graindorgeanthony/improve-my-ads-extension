@@ -9,54 +9,36 @@
   <header class="header">
     <img src="../icons/icon32.png" alt="" width="20" height="20" />
     <div class="header-text">
-      <div class="title">Google Ads Grader</div>
-      <a class="subtitle" href="https://improve-my-ads.com" target="_blank" rel="noopener">by Improve My Ads</a>
+      <div class="title">Improve My Ads</div>
+      <a class="subtitle" href="https://improve-my-ads.com" target="_blank" rel="noopener">improve-my-ads.com</a>
     </div>
   </header>
 
   <main>
-    <form id="grade-form">
-      <label for="headline" class="label">Headline</label>
-      <input id="headline" type="text" maxlength="120" placeholder="e.g. Stop Wasting Ad Spend | Fix It Today" required />
+    <p class="blurb">
+      Improve My Ads audits your ad copy against real behavioral-psychology and platform-specific
+      factors, then shows you exactly what's holding it back — and how to fix it.
+    </p>
 
-      <label for="description" class="label field-spacing">Description <span class="optional">· optional</span></label>
-      <textarea id="description" maxlength="500" rows="2" placeholder="e.g. Free trial today. See what's costing you clicks."></textarea>
-
-      <div class="row-between">
-        <span id="char-count" class="char-count">0 / 2000</span>
+    <div class="how-it-works">
+      <div class="how-item">
+        <span class="how-icon">①</span>
+        <span>Browse Google Search — search ads get a "Grade this ad" button automatically.</span>
       </div>
-      <button type="submit" id="grade-btn" class="primary-btn">
-        <span id="grade-btn-label">Check this ad</span>
-      </button>
-    </form>
-
-    <div id="error-banner" class="error-banner hidden"></div>
-
-    <section id="result" class="result hidden">
-      <div id="result-headline" class="result-headline"></div>
-      <div class="score-row">
-        <div id="score" class="score">–</div>
-        <div id="score-label" class="score-label">Estimated score</div>
+      <div class="how-item">
+        <span class="how-icon">②</span>
+        <span>Or select any text, anywhere, and right-click "Check this Google ad."</span>
       </div>
-      <div id="findings"></div>
-      <a id="full-audit-link" class="cta" href="#" target="_blank" rel="noopener">Run the full Google Ads audit →</a>
-      <div id="remaining" class="remaining hidden"></div>
-    </section>
+    </div>
 
-    <section class="history-section">
-      <button id="history-toggle" class="history-toggle" type="button">
-        <span>Recent checks</span>
-        <span id="history-chevron">▾</span>
-      </button>
-      <div id="history-list" class="history-list hidden"></div>
-    </section>
+    <a class="cta" href="https://improve-my-ads.com/audit/google-ads-optimization" target="_blank" rel="noopener">
+      Open the full Google Ads audit →
+    </a>
   </main>
 
   <footer class="footer">
     <span>Free · No sign-in · 8 checks/hour</span>
-    <a href="https://improve-my-ads.com/audit/google-ads-optimization" target="_blank" rel="noopener">Open full tool ↗</a>
+    <a href="https://improve-my-ads.com" target="_blank" rel="noopener">About ↗</a>
   </footer>
-
-  <script src="popup.js" type="module"></script>
 </body>
 </html>

@@ -1,33 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import {
-  gradeGoogleAd,
-  previewGoogleAd,
-  fullAuditHandoffUrl,
-  saveHistoryEntry,
-  getHistory,
-  clearHistory,
-  SUPABASE_URL,
-} from "../lib/api.js";
-
-// Minimal chrome.storage.local mock — an in-memory object, mirroring the
-// real callback-less Promise-returning API used by lib/api.js.
-function installChromeStorageMock() {
-  let store = {};
-  globalThis.chrome = {
-    storage: {
-      local: {
-        get: vi.fn(async (key) => ({ [key]: store[key] ?? [] })),
-        set: vi.fn(async (obj) => {
-          store = { ...store, ...obj };
-        }),
-      },
-    },
-  };
-  return () => store;
-}
+import { gradeGoogleAd, previewGoogleAd, fullAuditHandoffUrl, SUPABASE_URL } from "../lib/api.js";
 
 beforeEach(() => {
-  installChromeStorageMock();
   vi.restoreAllMocks();
 });
 
@@ -115,33 +89,5 @@ describe("fullAuditHandoffUrl", () => {
       Buffer.from(encoded.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8"),
     );
     expect(decoded).toEqual(items);
-  });
-});
-
-describe("history (chrome.storage.local)", () => {
-  it("starts empty", async () => {
-    expect(await getHistory()).toEqual([]);
-  });
-
-  it("saves an entry and returns it newest-first", async () => {
-    await saveHistoryEntry({ headline: "First", score: 10, principle: "", diagnosis: "", fixes: [] });
-    const history = await saveHistoryEntry({ headline: "Second", score: 90, principle: "", diagnosis: "", fixes: [] });
-    expect(history.map((h) => h.headline)).toEqual(["Second", "First"]);
-    expect(history[0].ts).toEqual(expect.any(Number));
-  });
-
-  it("caps history at 12 entries", async () => {
-    for (let i = 0; i < 15; i++) {
-      await saveHistoryEntry({ headline: `Entry ${i}`, score: i, principle: "", diagnosis: "", fixes: [] });
-    }
-    const history = await getHistory();
-    expect(history).toHaveLength(12);
-    expect(history[0].headline).toBe("Entry 14");
-  });
-
-  it("clearHistory empties the list", async () => {
-    await saveHistoryEntry({ headline: "First", score: 10, principle: "", diagnosis: "", fixes: [] });
-    await clearHistory();
-    expect(await getHistory()).toEqual([]);
   });
 });

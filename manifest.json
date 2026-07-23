@@ -3,7 +3,7 @@
   "name": "Google Ads Grader — by Improve My Ads",
   "short_name": "Google Ads Grader",
   "version": "1.1.0",
-  "description": "Grade any Google Ads headline instantly against real Google Ads factors — query intent, CTAs, extensions. Right-click text anywhere, or paste in the popup — free, no sign-in.",
+  "description": "Grade any Google Ads headline instantly against real Google Ads factors — query intent, CTAs, extensions. Get a button on every Google search ad, or right-click any text — free, no sign-in.",
   "homepage_url": "https://improve-my-ads.com/extension",
   "icons": {
     "16": "icons/icon16.png",
@@ -19,13 +19,13 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "Grade a Google ad"
+    "default_title": "Improve My Ads — Google Ads Grader"
   },
   "background": {
     "service_worker": "background/service-worker.js",
     "type": "module"
   },
-  "permissions": ["contextMenus", "storage", "scripting", "activeTab"],
+  "permissions": ["contextMenus", "scripting", "activeTab"],
   "host_permissions": [
     "https://fmuaeuzxpxhqociziebs.supabase.co/*"
   ],

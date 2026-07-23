@@ -48,8 +48,8 @@ is best-effort heuristic detection — it may occasionally miss an ad, and the m
 flow above always works as a fallback everywhere else.
 
 TOOLBAR POPUP
-Click the icon any time to check a headline manually, and revisit your last 12 checks — stored
-only on your device, never uploaded.
+Click the icon any time for a quick reminder of how the extension works, and a one-click shortcut
+into the full audit tool.
 
 GO DEEPER WHEN YOU WANT TO
 Every result links straight into Improve My Ads' full Google Ads audit (behavioral psychology,
@@ -57,7 +57,7 @@ platform & media buying, copywriting, offer, visual design, conversion/CRO) — 
 carries over automatically, so you're not retyping anything.
 
 PRIVACY, PLAIN AND SIMPLE
-Manual checks send only the exact text you select or paste. The auto-detection scans locally on
+A right-click check sends only the exact text you select. The auto-detection scans locally on
 Google Search and sends nothing unless you click the button. On every other site, the extension
 does not read the page at all. Full policy: https://improve-my-ads.com/privacy
 
@@ -72,8 +72,6 @@ on Google Search results pages.
 
 **Permission justifications**:
 - `contextMenus` — adds the "Check this Google ad" right-click menu item.
-- `storage` — stores the user's recent check history locally (`chrome.storage.local`); never
-  synced or uploaded.
 - `scripting` + `activeTab` — injects the floating result card into the active tab after a
   context-menu check action (a user gesture), and nothing else.
 - `host_permissions` (`fmuaeuzxpxhqociziebs.supabase.co`) — the only network endpoint the
@@ -100,10 +98,9 @@ https://improve-my-ads.com/extension
 
 ## Icons / screenshots needed before submission
 
-- Store icon: `icons/icon128.png` (already generated, brand monogram — consider a more
-  distinctive/illustrated icon before launch if the letter-mark feels too plain at scale).
-- Screenshots (1280x800 or 640x400, at least 1, up to 5): real screenshots of the popup with a
-  graded result, and the on-page result card on a real Google Search results page — capture these
+- Store icon: `icons/icon128.png` (already generated — matches the site's own favicon).
+- Screenshots (1280x800 or 640x400, at least 1, up to 5): real screenshots of the on-page result
+  card on a real Google Search results page, and the right-click result card — capture these
   directly from `chrome://extensions` → "Load unpacked" once you've clicked through the flows
   yourself; not something generatable without a live browser session.
 - Small promo tile (440x280) and marquee (1400x560): optional but improve click-through from

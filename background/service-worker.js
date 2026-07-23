@@ -1,4 +1,4 @@
-import { gradeGoogleAd, saveHistoryEntry, fullAuditHandoffUrl } from "../lib/api.js";
+import { gradeGoogleAd, fullAuditHandoffUrl } from "../lib/api.js";
 
 const MENU_ID = "check-google-ad";
 
@@ -33,7 +33,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await injectToast(tab.id, result.error);
     return;
   }
-  await saveHistoryEntry({ headline, ...result.data });
   await injectResultCard(tab.id, {
     headline,
     ...result.data,

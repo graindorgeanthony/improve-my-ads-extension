@@ -199,6 +199,57 @@ describe("extractGoogleAdText", () => {
     setBody(`<div id="container"><span>Hi</span></div>`);
     expect(extractGoogleAdText(document.getElementById("container"))).toEqual({ items: [], landingPage: "" });
   });
+
+  it("detects compact inline-link callouts (leaf anchors, no per-item description) — a second real ad ('SaaS Growth Playbook', 2026-07-23) used this shape instead of boxed sitelinks", () => {
+    setBody(
+      '<div id="container" data-text-ad="1">' +
+        '<a class="sVXRqc" href="https://info.revenera.com/SWM-WP-SaaS-Growth-Playbook?lead_source=Organic%20Search">' +
+        '<div role="heading"><span>SaaS Growth Playbook</span></div>' +
+        '<div class="d8lRkd"><span>Revenera</span><span>https://info.revenera.com › saas › playbook</span></div>' +
+        "</a>" +
+        '<div class="p4wth"><span><em>SaaS</em> Pricing Models — Allow your <em>SaaS</em> business to thrive. This playbook is your guide to making smart product decisions that fuel revenue.</span></div>' +
+        '<div class="qmaLCb"><div class="dcuivd">' +
+        '<a href="https://info.revenera.com/pricing">SaaS Pricing</a> · ' +
+        '<a href="https://info.revenera.com/download">Download Your SaaS Playbook</a> · ' +
+        '<a href="https://info.revenera.com/cfo-ebook">Download The CFO’s eBook</a>' +
+        "</div></div>" +
+        "</div>",
+    );
+    const { items, landingPage } = extractGoogleAdText(document.getElementById("container"));
+
+    expect(items.find((i) => i.label === "Headline")?.body).toBe("SaaS Growth Playbook");
+    expect(landingPage).toBe("https://info.revenera.com/SWM-WP-SaaS-Growth-Playbook?lead_source=Organic%20Search");
+
+    const description = items.find((i) => i.label === "Description");
+    expect(description?.body).toMatch(/^SaaS Pricing Models/);
+    expect(description?.body).not.toMatch(/Download Your SaaS Playbook/);
+
+    const callouts = items.filter((i) => i.label.startsWith("Callout"));
+    expect(callouts.map((c) => c.body)).toEqual(["SaaS Pricing", "Download Your SaaS Playbook", "Download The CFO’s eBook"]);
+  });
+
+  it("mixes boxed callouts and compact inline-link callouts in the same ad, filling remaining slots up to 5", () => {
+    setBody(
+      '<div id="container" data-text-ad="1">' +
+        '<a class="sVXRqc" href="https://example.com/lp">' +
+        '<div role="heading"><span>Headline Text</span></div>' +
+        "<div><span>Advertiser</span><span>https://example.com</span></div>" +
+        "</a>" +
+        "<div>A real description block that is long enough to be picked up by the heuristic here.</div>" +
+        '<div class="iCzAIb"><a href="https://example.com/a"><div>Boxed callout</div><div>Boxed callout description text here</div></a></div>' +
+        '<div class="qmaLCb"><div class="dcuivd">' +
+        '<a href="https://example.com/b">Compact one</a> · <a href="https://example.com/c">Compact two</a>' +
+        "</div></div>" +
+        "</div>",
+    );
+    const { items } = extractGoogleAdText(document.getElementById("container"));
+    const callouts = items.filter((i) => i.label.startsWith("Callout"));
+    expect(callouts.map((c) => c.body)).toEqual([
+      "Boxed callout: Boxed callout description text here",
+      "Compact one",
+      "Compact two",
+    ]);
+  });
 });
 
 describe("extractRealDestinationUrl", () => {
@@ -223,6 +274,19 @@ describe("extractRealDestinationUrl", () => {
 
   it("returns an empty string for a null/missing anchor", () => {
     expect(extractRealDestinationUrl(null)).toBe("");
+  });
+
+  it("prefers data-rw's fuller UTM-tagged redirect over a clean, direct href (real bug, 2026-07-23: 'SaaS Growth Playbook' ad)", () => {
+    // The href itself already goes straight to the advertiser (no
+    // redirect), but data-rw still carries Google's own richer adurl with
+    // the full UTM set — data-rw should win.
+    setBody(
+      '<a id="link" ' +
+        'href="https://info.revenera.com/SWM-WP-SaaS-Growth-Playbook?lead_source=Organic%20Search" ' +
+        'data-rw="https://www.google.com/aclk?sa=L&gclid=x&adurl=https://info.revenera.com/SWM-WP-SaaS-Growth-Playbook?utm_source%3Dgoogle%26utm_medium%3Dcpc">text</a>',
+    );
+    const url = extractRealDestinationUrl(document.getElementById("link"));
+    expect(url).toBe("https://info.revenera.com/SWM-WP-SaaS-Growth-Playbook?utm_source=google&utm_medium=cpc");
   });
 });
 

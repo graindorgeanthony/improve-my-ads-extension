@@ -105,21 +105,26 @@
   }
 
   // Google wraps its ad link's real destination inside a "adurl=" query
-  // param on a google.com/aclk tracking redirect (confirmed live,
-  // 2026-07-23, via real markup: href="https://www.google.com/aclk?...
-  // &adurl=https://productfruits.com/lp/...%3Futm_term%3D..."). One pass of
-  // URLSearchParams decoding recovers the real, fully UTM-tagged landing
-  // page URL exactly as Google itself would send the visitor. Some
-  // sitelinks instead have an already-clean, non-redirect href — those are
-  // returned as-is.
+  // param on a google.com/aclk tracking redirect. Confirmed live
+  // (2026-07-23) across two real ads that a `data-rw` attribute — when
+  // present — always carries this full redirect+adurl, even for an ad
+  // whose actual `href` is already a clean, direct, non-redirect link (the
+  // second ad's headline anchor: href goes straight to the advertiser, but
+  // data-rw still has the fuller UTM-tagged version) — so data-rw is
+  // preferred when available, falling back to href's own adurl, falling
+  // back to href itself. One pass of URLSearchParams decoding recovers the
+  // real, fully UTM-tagged landing page URL exactly as Google would send
+  // the visitor.
   function extractRealDestinationUrl(anchorEl) {
-    if (!anchorEl || !anchorEl.href) return "";
+    if (!anchorEl) return "";
+    const raw = (anchorEl.getAttribute && anchorEl.getAttribute("data-rw")) || anchorEl.href;
+    if (!raw) return "";
     try {
-      const url = new URL(anchorEl.href, location.href);
+      const url = new URL(raw, location.href);
       const adurl = url.searchParams.get("adurl");
-      return adurl || anchorEl.href;
+      return adurl || anchorEl.href || raw;
     } catch {
-      return anchorEl.href || "";
+      return anchorEl.href || raw || "";
     }
   }
 
@@ -211,8 +216,29 @@
       if (!descText || callouts.some((c) => c.title === titleText)) return;
       callouts.push({ el: a, title: titleText, desc: descText });
     });
+
+    // Second callout shape: compact inline text links with NO per-item
+    // description at all — Google also renders sitelinks as a single row of
+    // short links separated by "·" (confirmed live, 2026-07-23: "SaaS
+    // Pricing · Download Your SaaS Playbook · ..."). These are leaf anchors
+    // (no element children), unlike the boxed title+description shape
+    // above, so they need their own pass. Only fills remaining slots up to
+    // the 5-callout cap, after the richer boxed callouts (if any).
+    if (callouts.length < 5) {
+      container.querySelectorAll("a").forEach((a) => {
+        if (callouts.length >= 5) return;
+        if (isOwnUi(a) || a.children.length > 0) return;
+        if (headlineAnchor && (a === headlineAnchor || headlineAnchor.contains(a) || a.contains(headlineAnchor))) return;
+        if (callouts.some((c) => c.el === a)) return;
+        const t = cleanText(a.textContent);
+        if (!t || t.length < 2 || t.length > 60 || isBreadcrumb(t)) return;
+        if (callouts.some((c) => c.title === t)) return;
+        callouts.push({ el: a, title: t, desc: "" });
+      });
+    }
+
     callouts.slice(0, 5).forEach((c, i) => {
-      items.push({ label: `Callout ${i + 1}`, body: `${c.title}: ${c.desc}` });
+      items.push({ label: `Callout ${i + 1}`, body: c.desc ? `${c.title}: ${c.desc}` : c.title });
       used.add(c.el);
     });
 
@@ -221,7 +247,7 @@
     const candidates = [];
     container.querySelectorAll("div, span, p").forEach((el) => {
       if (isOwnUi(el) || isBlockish(el)) return;
-      if ([...used].some((u) => u === el || (u.contains && u.contains(el)))) return;
+      if ([...used].some((u) => u === el || (u.contains && u.contains(el)) || (el.contains && el.contains(u)))) return;
       const t = cleanText(el.textContent);
       if (!t || t === headlineText || isBreadcrumb(t)) return;
       candidates.push({ el, text: t });

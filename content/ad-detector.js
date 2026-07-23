@@ -431,6 +431,12 @@
       .brand { font-size:11px; letter-spacing:.5px; color:#655F52; text-transform:uppercase; font-weight:600; }
       .close { cursor:pointer; border:none; background:none; color:#655F52; font-size:16px; line-height:1; padding:2px 4px; }
       .close:hover { color:#181712; }
+      .headline-quote { font-size:12.5px; color:#655F52; font-style:italic; border-left:2px solid #DCD6C6;
+        padding-left:8px; margin: 0 0 12px; max-height:54px; overflow:hidden; }
+      .score-wrap { display:flex; align-items:baseline; gap:10px; margin-bottom:2px; }
+      .score { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight:700; font-size:30px; line-height:1; }
+      .score-label { font-size:11px; color:#655F52; }
+      .score-caption { font-size:10.5px; color:#8A8577; margin: 0 0 12px; }
       .finding { padding: 8px 0; border-top: 1px solid #DCD6C6; }
       .finding:first-of-type { border-top: none; }
       .lens { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.3px; text-transform:uppercase;
@@ -440,7 +446,15 @@
       .cta { display:block; text-align:center; margin-top:12px; padding:9px; background:#181712; color:#F1EEE6 !important;
         border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; }
       .cta:hover { background:#33312a; }
+      .remaining { margin-top:10px; text-align:center; font-size:11px; color:#655F52; }
+      .remaining-low { color:#9C4708; font-weight:600; }
     `;
+  }
+
+  function scoreColor(score) {
+    if (score >= 70) return "#1F7A4D";
+    if (score >= 40) return "#9C4708";
+    return "#B0362E";
   }
 
   function showLoading() {
@@ -474,12 +488,40 @@
     setTimeout(() => { if (root.host) root.host.remove(); }, 7000);
   }
 
-  function showFindings(findings, items, landingPage) {
+  // `data` is preview-google-ad's full response — { score, findings,
+  // remaining, limit } — not just the findings array, so this card can show
+  // the same score treatment the extension's OTHER two entry points (the
+  // toolbar popup and the right-click menu, both backed by grade-google-ad)
+  // already show. `items`/`landingPage` are the raw extraction, used here
+  // only to quote the headline and to build the handoff URL.
+  function showFindings(data, items, landingPage) {
+    const { score, findings = [], remaining, limit } = data;
     const root = ensureHost();
     const style = document.createElement("style");
     style.textContent = baseCardStyle();
     const card = document.createElement("div");
     card.className = "card";
+
+    // Echoes which ad this card is actually about — without it, a card
+    // graded from an ad near the top of a long SERP gives no clue what it's
+    // describing once the visitor has scrolled away from the button they
+    // clicked. Same treatment as the right-click card's own headline quote.
+    const headline = items.find((it) => it.label === "Headline")?.body || "";
+    const headlineHtml = headline
+      ? `<div class="headline-quote">"${headline.length > 140 ? headline.slice(0, 140) + "…" : headline}"</div>`
+      : "";
+
+    // Labeled "Estimated" (not just "Google Ads score") deliberately — this
+    // comes from one lightweight, 2-lens call, not the full audit's 6-lens
+    // + synthesis pipeline (see run-audit's SYNTHESIS_SYSTEM_PROMPT), so it
+    // can genuinely land on a different number than the real audit. Framing
+    // it as a fast estimate up front avoids that divergence ever reading as
+    // the product contradicting itself.
+    const scoreHtml =
+      typeof score === "number"
+        ? `<div class="score-wrap"><div class="score" style="color:${scoreColor(score)}">${score}</div><div class="score-label">Estimated score</div></div>
+           <div class="score-caption">Fast 2-lens read — the full audit checks all 6 and may land differently</div>`
+        : "";
 
     const findingsHtml = findings
       .map(
@@ -499,10 +541,21 @@
     if (landingPage) params.set("lp", toBase64Url(landingPage));
     const fullUrl = `${SITE_URL}/extension-handoff?${params.toString()}`;
 
+    // Only shown once the server actually reports a count — an infra hiccup
+    // that leaves these fields off the response just omits the line instead
+    // of showing a wrong or placeholder number.
+    const remainingHtml =
+      typeof remaining === "number" && typeof limit === "number"
+        ? `<div class="remaining${remaining <= 1 ? " remaining-low" : ""}">${remaining} free check${remaining === 1 ? "" : "s"} left this hour</div>`
+        : "";
+
     card.innerHTML = `
       <div class="row"><span class="brand">Improve My Ads — free preview</span><button class="close">✕</button></div>
+      ${headlineHtml}
+      ${scoreHtml}
       ${findingsHtml || '<p style="font-size:13px;">No issues surfaced — nice work. Run the full audit for the complete picture.</p>'}
-      <a class="cta" href="${fullUrl}" target="_blank" rel="noopener">See the full Google Ads audit →</a>
+      <a class="cta" href="${fullUrl}" target="_blank" rel="noopener">Run the full Google Ads audit →</a>
+      ${remainingHtml}
     `;
     card.querySelector(".close").addEventListener("click", () => root.host.remove());
     root.appendChild(style);
@@ -548,7 +601,7 @@
       showMessage(result.error);
       return;
     }
-    showFindings(result.data.findings || [], items, landingPage);
+    showFindings(result.data, items, landingPage);
   }
 
   function scan() {

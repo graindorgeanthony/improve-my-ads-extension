@@ -104,26 +104,36 @@
     return items;
   }
 
+  // Google wraps its ad link's real destination inside a "adurl=" query
+  // param on a google.com/aclk tracking redirect (confirmed live,
+  // 2026-07-23, via real markup: href="https://www.google.com/aclk?...
+  // &adurl=https://productfruits.com/lp/...%3Futm_term%3D..."). One pass of
+  // URLSearchParams decoding recovers the real, fully UTM-tagged landing
+  // page URL exactly as Google itself would send the visitor. Some
+  // sitelinks instead have an already-clean, non-redirect href — those are
+  // returned as-is.
+  function extractRealDestinationUrl(anchorEl) {
+    if (!anchorEl || !anchorEl.href) return "";
+    try {
+      const url = new URL(anchorEl.href, location.href);
+      const adurl = url.searchParams.get("adurl");
+      return adurl || anchorEl.href;
+    } catch {
+      return anchorEl.href || "";
+    }
+  }
+
   // Google-specific extractor: Google's ad cards have real internal
-  // structure worth pulling apart deliberately (landing page breadcrumb,
+  // structure worth pulling apart deliberately (real landing page URL,
   // headline, description, and up to a handful of sitelink/callout
   // extensions) rather than treating the whole thing as one generic blob.
+  // Returns { items, landingPage } — landingPage is surfaced separately
+  // (not as a generic text item) so it can populate the full audit's own
+  // dedicated "Landing page link" field.
   function extractGoogleAdText(container) {
     const items = [];
     const used = new Set();
-
-    // Landing page: the visible bare-URL breadcrumb text under the
-    // advertiser name — more reliable than reading an <a href>, which on a
-    // Google SERP ad is usually a google.com/aclk tracking redirect, not
-    // the real destination.
-    const urlLeaf = findLeafTextElements(container, /^https?:\/\//)[0];
-    if (urlLeaf) {
-      const landingPage = cleanText(urlLeaf.textContent);
-      if (landingPage) {
-        items.push({ label: "Landing page", body: landingPage });
-        used.add(urlLeaf);
-      }
-    }
+    let landingPage = "";
 
     // Headline: prefer an explicit heading element (role="heading" or h3) —
     // Google (like Facebook) marks the ad title this way when present, and
@@ -134,12 +144,14 @@
     // back to scanning anchors directly only if no heading element exists.
     let headlineText = "";
     let headlineEl = null;
+    let headlineAnchor = null;
     const headingEl = container.querySelector('[role="heading"], h3');
     if (headingEl && !isOwnUi(headingEl)) {
       const t = cleanText(headingEl.textContent);
       if (t && !isBreadcrumb(t)) {
         headlineText = t;
         headlineEl = headingEl;
+        headlineAnchor = headingEl.closest("a");
       }
     }
     if (!headlineText) {
@@ -149,6 +161,7 @@
         if (t.length >= 8 && t.length <= 90 && !isBreadcrumb(t)) {
           headlineText = t;
           headlineEl = a;
+          headlineAnchor = a;
           break;
         }
       }
@@ -158,13 +171,57 @@
       used.add(headlineEl);
     }
 
-    // Description: the longest leaf-ish text block that isn't the
-    // headline/landing page and isn't a short callout/sitelink title.
+    // Landing page: the ad's real destination, decoded from the headline's
+    // own wrapping anchor. Falls back to the visible bare-URL breadcrumb
+    // text if no anchor/href is found at all.
+    const urlLeaf = findLeafTextElements(container, /^https?:\/\//)[0];
+    if (headlineAnchor) {
+      landingPage = extractRealDestinationUrl(headlineAnchor);
+      if (urlLeaf) used.add(urlLeaf); // still exclude the breadcrumb from description candidates
+    } else if (urlLeaf) {
+      landingPage = cleanText(urlLeaf.textContent);
+      used.add(urlLeaf);
+    }
+
+    // Callouts / sitelinks: Google wraps each sitelink's title AND its own
+    // one-line description as the first two direct children of a single
+    // <a> (confirmed live) — NOT as separate elements. Detecting by that
+    // exact shape (short first child, longer second child) avoids both
+    // false negatives (the earlier version filtered by whole-anchor text
+    // length, which rejected every real sitelink since title+description
+    // together exceeded the cutoff) and false positives (explicitly
+    // excludes the headline's own anchor, which also has 2 children —
+    // heading + advertiser info — and would otherwise look like a callout).
+    const callouts = [];
+    container.querySelectorAll("a").forEach((a) => {
+      if (isOwnUi(a)) return;
+      if (headlineAnchor && (a === headlineAnchor || headlineAnchor.contains(a) || a.contains(headlineAnchor))) return;
+      const blockChildren = Array.from(a.children).filter((c) => cleanText(c.textContent).length > 0);
+      if (blockChildren.length < 2) return;
+      const titleText = cleanText(blockChildren[0].textContent);
+      if (!titleText || titleText.length > 60 || isBreadcrumb(titleText)) return;
+      let descText = "";
+      for (let i = 1; i < blockChildren.length; i++) {
+        const t = cleanText(blockChildren[i].textContent);
+        if (t && t !== titleText && t.length > 10 && !isBreadcrumb(t)) {
+          descText = t;
+          break;
+        }
+      }
+      if (!descText || callouts.some((c) => c.title === titleText)) return;
+      callouts.push({ el: a, title: titleText, desc: descText });
+    });
+    callouts.slice(0, 5).forEach((c, i) => {
+      items.push({ label: `Callout ${i + 1}`, body: `${c.title}: ${c.desc}` });
+      used.add(c.el);
+    });
+
+    // Description: the longest remaining leaf-ish text block that isn't
+    // the headline, landing page breadcrumb, or a callout's own text.
     const candidates = [];
     container.querySelectorAll("div, span, p").forEach((el) => {
       if (isOwnUi(el) || isBlockish(el)) return;
-      if (headlineEl && headlineEl.contains(el)) return;
-      if (urlLeaf && (el === urlLeaf || el.contains(urlLeaf))) return;
+      if ([...used].some((u) => u === el || (u.contains && u.contains(el)))) return;
       const t = cleanText(el.textContent);
       if (!t || t === headlineText || isBreadcrumb(t)) return;
       candidates.push({ el, text: t });
@@ -173,39 +230,9 @@
     const description = candidates.find((c) => c.text.length > 25);
     if (description) {
       items.push({ label: "Description", body: description.text });
-      used.add(description.el);
     }
 
-    // Callouts / sitelinks: additional short anchor texts beyond the
-    // headline (Google's sitelink-extension titles), each paired with its
-    // own short nearby description if one is findable. Capped at 5, the
-    // real max Google typically shows.
-    const callouts = [];
-    container.querySelectorAll("a").forEach((a) => {
-      if (isOwnUi(a) || a === headlineEl || used.has(a)) return;
-      const t = cleanText(a.textContent);
-      if (t.length >= 3 && t.length <= 45 && !isBreadcrumb(t) && !callouts.some((c) => c.title === t)) {
-        callouts.push({ el: a, title: t });
-      }
-    });
-    callouts.slice(0, 5).forEach((c, i) => {
-      const wrapper = c.el.closest("div") || c.el.parentElement;
-      let descText = "";
-      if (wrapper) {
-        const leaf = Array.from(wrapper.querySelectorAll("div, span, p")).find(
-          (el) =>
-            !isBlockish(el) &&
-            el !== c.el &&
-            !el.contains(c.el) &&
-            cleanText(el.textContent) !== c.title &&
-            cleanText(el.textContent).length > 10,
-        );
-        if (leaf) descText = cleanText(leaf.textContent);
-      }
-      items.push({ label: `Callout ${i + 1}`, body: descText ? `${c.title} — ${descText}` : c.title });
-    });
-
-    return items;
+    return { items, landingPage };
   }
 
   // Finds leaf elements (no element children) whose cleaned text exactly
@@ -257,7 +284,7 @@
           const heading = container.querySelector('[role="heading"]');
           const headingText = heading ? cleanText(heading.textContent) : "";
           if (headingText && headingText !== primary) items.push({ label: "Headline", body: headingText });
-          return items.length ? items : extractGenericAdText(container);
+          return { items: items.length ? items : extractGenericAdText(container), landingPage: "" };
         },
       });
     });
@@ -270,7 +297,7 @@
       const container = label.closest('[role="article"]') || climbToContainer(label);
       if (!container || container.hasAttribute(PROCESSED_ATTR) || seen.has(container)) return;
       seen.add(container);
-      results.push({ container, extract: () => extractGenericAdText(container) });
+      results.push({ container, extract: () => ({ items: extractGenericAdText(container), landingPage: "" }) });
     });
 
     return results;
@@ -294,7 +321,7 @@
           const commentary = container.querySelector(".feed-shared-inline-show-more-text, .feed-shared-text");
           const body = commentary ? cleanText(commentary.textContent) : "";
           const items = body ? [{ label: "Primary text", body }] : [];
-          return items.length ? items : extractGenericAdText(container);
+          return { items: items.length ? items : extractGenericAdText(container), landingPage: "" };
         },
       });
     });
@@ -347,10 +374,12 @@
 
   // extractGoogleAdText can legitimately come back empty on a layout it
   // doesn't recognize at all — fall back to the platform-agnostic
-  // extractor rather than surfacing nothing.
+  // extractor rather than surfacing nothing. Always normalizes to
+  // { items, landingPage } so every platform's extract() has one shape.
   function extractGoogleOrFallback(container) {
-    const items = extractGoogleAdText(container);
-    return items.length ? items : extractGenericAdText(container);
+    const result = extractGoogleAdText(container);
+    if (result.items.length) return result;
+    return { items: extractGenericAdText(container), landingPage: "" };
   }
 
   function findYouTubeAds() {
@@ -369,7 +398,7 @@
           const overlayText = container.querySelector(".ytp-ad-text, .ytp-ad-button-text");
           const text = overlayText ? cleanText(overlayText.textContent) : "";
           if (text) items.push({ label: "Ad text", body: text });
-          return items;
+          return { items, landingPage: "" };
         },
       });
     });
@@ -393,7 +422,7 @@
           // Reddit's current web component markup.
           const title = container.getAttribute && container.getAttribute("post-title");
           const items = title ? [{ label: "Headline", body: cleanText(title) }] : [];
-          return items.length ? items : extractGenericAdText(container);
+          return { items: items.length ? items : extractGenericAdText(container), landingPage: "" };
         },
       });
     });
@@ -418,7 +447,7 @@
           const caption = container.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"]');
           const text = caption ? cleanText(caption.textContent) : "";
           const items = text ? [{ label: "Caption", body: text }] : [];
-          return items.length ? items : extractGenericAdText(container);
+          return { items: items.length ? items : extractGenericAdText(container), landingPage: "" };
         },
       });
     });
@@ -558,7 +587,7 @@
     setTimeout(() => { if (root.host) root.host.remove(); }, 7000);
   }
 
-  function showFindings(findings, items, platform) {
+  function showFindings(findings, items, platform, landingPage) {
     const root = ensureHost();
     const style = document.createElement("style");
     style.textContent = baseCardStyle();
@@ -580,6 +609,7 @@
     params.set("slug", mapSlug(platform));
     params.set("items", toBase64Url(JSON.stringify(items)));
     if (platform) params.set("platform", platform);
+    if (landingPage) params.set("lp", toBase64Url(landingPage));
     const fullUrl = `${SITE_URL}/extension-handoff?${params.toString()}`;
 
     card.innerHTML = `
@@ -624,7 +654,8 @@
     }
   }
 
-  async function handleGradeClick(items, platform) {
+  async function handleGradeClick(extraction, platform) {
+    const { items, landingPage } = extraction;
     const combined = items.map((it) => it.body).join("\n\n");
     if (combined.trim().length < 5) {
       showMessage("Couldn't find enough text in this ad — try selecting its text manually and right-clicking instead.");
@@ -636,7 +667,7 @@
       showMessage(result.error);
       return;
     }
-    showFindings(result.data.findings || [], items, platform);
+    showFindings(result.data.findings || [], items, platform, landingPage);
   }
 
   function scan() {

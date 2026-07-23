@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { cleanText, extractGenericAdText, extractGoogleAdText, findLeafTextElements, climbToContainer } from "../lib/dom-extract.js";
+import {
+  cleanText,
+  extractGenericAdText,
+  extractGoogleAdText,
+  extractRealDestinationUrl,
+  findLeafTextElements,
+  climbToContainer,
+} from "../lib/dom-extract.js";
 
 function setBody(html) {
   document.body.innerHTML = html;
@@ -73,102 +80,149 @@ describe("extractGenericAdText", () => {
   });
 });
 
+// Builds markup faithful to the real live DOM a user pasted in full
+// (2026-07-23): the headline anchor wraps a role="heading" div PLUS an
+// advertiser-info div (name + bare-URL breadcrumb) as its two direct
+// children — the real source of the concatenation bug, since a naive
+// "whole anchor textContent" read glues all three together with no
+// separator. The anchor's href is a google.com/aclk redirect with the real
+// destination double-encoded in its own "adurl" param. Each sitelink/
+// callout anchor wraps ITS OWN title + description as two direct children
+// too (not as a separate element pair) — the real reason the previous
+// callout detection (filtering by whole-anchor text length) found nothing.
+function buildRealisticGoogleAdHtml({ calloutCount = 5 } = {}) {
+  const adurl =
+    "https://productfruits.com/lp/user-onboarding-2?utm_term%3Dproduct%2520adoption%2520saas%26utm_campaign%3DEurope%26gclid%3Dabc123";
+  const sitelinkDefs = [
+    ["Fair pricing", "Find a plan that works for you Unbeatable price-value ratio", "https://productfruits.com/pricing"],
+    ["Product adoption", "Spotlight new releases in-app Drive adoption of unused features", "https://productfruits.com/use-cases/feature-adoption"],
+    ["No-Code App Onboarding Screens", "Boost conversions and retention with AI-powered onboarding that keeps users engaged.", "https://productfruits.com/lp/user-onboarding-2"],
+    ["User onboarding", "Guide new users to their first win Turn signups into active users", "https://productfruits.com/use-cases/user-onboarding"],
+    ["Trial conversion", "Turn trials into paying customers Stop losing trials to inaction", "https://productfruits.com/use-cases/trial-conversion"],
+    ["Extra sixth sitelink", "This one should be dropped by the cap.", "https://productfruits.com/extra"],
+  ].slice(0, calloutCount);
+
+  const sitelinksHtml = sitelinkDefs
+    .map(
+      ([title, desc, href]) =>
+        `<div class="iCzAIb"><div class="hiPqL"><a class="aphJLc" href="${href}">` +
+        `<div class="aFn4tc">${title}</div><div class="wHYlTd">${desc}</div>` +
+        `</a></div></div>`,
+    )
+    .join("");
+
+  return (
+    '<div id="container" data-text-ad="1">' +
+    `<a class="sVXRqc" href="https://www.google.com/aclk?sa=L&amp;gclid=abc123&amp;adurl=${adurl}">` +
+    '<div class="CCgQ5" aria-level="3" role="heading"><span>Product Adoption SaaS</span></div>' +
+    '<div class="d8lRkd"><span class="OSrXXb">Product Fruits</span><span class="x2VHCd OSrXXb" role="text">https://www.productfruits.com</span></div>' +
+    "</a>" +
+    '<div class="Ktlw8e">' +
+    '<div class="Va3FIb"><div class="p4wth"><span>#1 <em>SaaS</em> Onboarding Platform — Stop losing users! Fix poor onboarding &amp; retention with the #1 product onboarding tool. Get the...</span></div></div>' +
+    sitelinksHtml +
+    "</div>" +
+    "</div>"
+  );
+}
+
 describe("extractGoogleAdText", () => {
-  it("does not contaminate the headline with a glued-together advertiser name + URL (real bug, 2026-07-23 live report)", () => {
-    // Reproduces the exact reported bug: a whole-card <a> wraps a
-    // role="heading" title, then the advertiser name and URL immediately
-    // after with NO whitespace between them in the source — the live
-    // report's wrong headline was literally
+  it("does not contaminate the headline with the advertiser name + URL glued into the same anchor (real bug, 2026-07-23 live report)", () => {
+    // The live report's wrong headline was literally
     // "Product Adoption SaaSProduct Fruitshttps://www.productfruits.com".
-    setBody(
-      '<div id="container">' +
-        '<a href="https://www.google.com/aclk?adurl=x">' +
-        '<div role="heading">Product Adoption SaaS</div>' +
-        "<span>Product Fruits</span>" +
-        "<span>https://www.productfruits.com</span>" +
-        "</a>" +
-        "<div>#1 <b>SaaS</b> Onboarding Platform — Stop losing users! Fix poor onboarding &amp; retention with the #1 product onboarding tool. Get the...</div>" +
-        "</div>",
-    );
-    const items = extractGoogleAdText(document.getElementById("container"));
+    setBody(buildRealisticGoogleAdHtml());
+    const { items } = extractGoogleAdText(document.getElementById("container"));
     const headline = items.find((i) => i.label === "Headline");
     expect(headline?.body).toBe("Product Adoption SaaS");
     expect(headline?.body).not.toMatch(/productfruits\.com/);
     expect(headline?.body).not.toMatch(/Product Fruits/);
   });
 
-  it("extracts the landing page URL as its own item, separate from the headline", () => {
-    setBody(
-      '<div id="container">' +
-        '<a href="https://www.google.com/aclk?adurl=x">' +
-        '<div role="heading">Product Adoption SaaS</div>' +
-        "<span>Product Fruits</span>" +
-        "<span>https://www.productfruits.com</span>" +
-        "</a>" +
-        "<div>#1 SaaS Onboarding Platform for growing teams who need real adoption data.</div>" +
-        "</div>",
+  it("decodes the real, fully UTM-tagged destination URL from the adurl= redirect param, as landingPage (not a generic item)", () => {
+    setBody(buildRealisticGoogleAdHtml());
+    const { items, landingPage } = extractGoogleAdText(document.getElementById("container"));
+    expect(landingPage).toBe(
+      "https://productfruits.com/lp/user-onboarding-2?utm_term=product%20adoption%20saas&utm_campaign=Europe&gclid=abc123",
     );
-    const items = extractGoogleAdText(document.getElementById("container"));
-    expect(items.find((i) => i.label === "Landing page")?.body).toBe("https://www.productfruits.com");
+    expect(items.some((i) => i.label === "Landing page")).toBe(false);
   });
 
-  it("picks the ad's own description over a shorter sitelink description, even with inline bold formatting", () => {
+  it("falls back to the visible URL breadcrumb text as landingPage when there's no anchor href at all", () => {
     setBody(
       '<div id="container">' +
-        '<a href="https://www.google.com/aclk?adurl=x">' +
         '<div role="heading">Product Adoption SaaS</div>' +
-        "<span>Product Fruits</span><span>https://www.productfruits.com</span>" +
-        "</a>" +
-        "<div>#1 <b>SaaS</b> Onboarding Platform — Stop losing users! Fix poor onboarding &amp; retention with the #1 product onboarding tool.</div>" +
-        '<div><a href="#">No-Code Onboarding UI Flows</a><div>Boost conversions and retention with AI-powered onboarding that keeps users engaged.</div></div>' +
+        "<span>https://www.productfruits.com</span>" +
+        "<div>#1 SaaS Onboarding Platform for growing teams everywhere.</div>" +
         "</div>",
     );
-    const items = extractGoogleAdText(document.getElementById("container"));
+    const { landingPage } = extractGoogleAdText(document.getElementById("container"));
+    expect(landingPage).toBe("https://www.productfruits.com");
+  });
+
+  it("picks the ad's own description over a shorter sitelink description, even with inline formatting (<em>)", () => {
+    setBody(buildRealisticGoogleAdHtml());
+    const { items } = extractGoogleAdText(document.getElementById("container"));
     const description = items.find((i) => i.label === "Description");
     expect(description?.body).toMatch(/^#1 SaaS Onboarding Platform/);
     expect(description?.body).not.toMatch(/Boost conversions/);
   });
 
-  it("extracts sitelink/callout title+description pairs, capped at 5", () => {
-    const sitelinks = [
-      ["Fair pricing", "Find a plan that works for you Unbeatable price-value ratio"],
-      ["Product adoption", "Spotlight new releases in-app Drive adoption of unused features"],
-      ["User onboarding", "Guide new users to their first win Turn signups into active users"],
-      ["No-Code Onboarding UI Flows", "Boost conversions and retention with AI-powered onboarding that keeps users engaged."],
-      ["Trial conversion", "Turn trials into paying customers Stop losing trials to inaction"],
-      ["Extra sixth sitelink", "This one should be dropped by the cap."],
-    ]
-      .map(([title, desc]) => `<div><a href="#">${title}</a><div>${desc}</div></div>`)
-      .join("");
-    setBody(
-      '<div id="container">' +
-        '<a href="https://www.google.com/aclk?adurl=x"><div role="heading">Product Adoption SaaS</div><span>Product Fruits</span><span>https://www.productfruits.com</span></a>' +
-        "<div>#1 SaaS Onboarding Platform, built for growing product-led teams everywhere.</div>" +
-        sitelinks +
-        "</div>",
-    );
-    const items = extractGoogleAdText(document.getElementById("container"));
+  it("extracts sitelink/callout title+description pairs from anchors that wrap BOTH as direct children, capped at 5", () => {
+    setBody(buildRealisticGoogleAdHtml({ calloutCount: 6 }));
+    const { items } = extractGoogleAdText(document.getElementById("container"));
     const callouts = items.filter((i) => i.label.startsWith("Callout"));
     expect(callouts).toHaveLength(5);
-    expect(callouts[0].body).toBe("Fair pricing — Find a plan that works for you Unbeatable price-value ratio");
+    expect(callouts[0].body).toBe("Fair pricing: Find a plan that works for you Unbeatable price-value ratio");
+    expect(callouts[2].body).toBe(
+      "No-Code App Onboarding Screens: Boost conversions and retention with AI-powered onboarding that keeps users engaged.",
+    );
     expect(callouts.some((c) => c.body.includes("Extra sixth sitelink"))).toBe(false);
   });
 
+  it("does not mistake the headline's own anchor (heading + advertiser info, also 2 children) for a callout", () => {
+    setBody(buildRealisticGoogleAdHtml({ calloutCount: 0 }));
+    const { items } = extractGoogleAdText(document.getElementById("container"));
+    const callouts = items.filter((i) => i.label.startsWith("Callout"));
+    expect(callouts).toHaveLength(0);
+  });
+
   it("never leaks the injected 'Grade this ad' button text into any extracted item", () => {
-    setBody(
-      '<div id="container">' +
-        '<button data-ima-button="1">Grade this ad</button>' +
-        '<a href="https://www.google.com/aclk?adurl=x"><div role="heading">Product Adoption SaaS</div><span>Product Fruits</span><span>https://www.productfruits.com</span></a>' +
-        "<div>#1 SaaS Onboarding Platform for growing teams everywhere who need it.</div>" +
-        "</div>",
+    const html = buildRealisticGoogleAdHtml().replace(
+      "</div></div>",
+      '</div></div><button data-ima-button="1">Grade this ad</button>',
     );
-    const items = extractGoogleAdText(document.getElementById("container"));
+    setBody(html);
+    const { items } = extractGoogleAdText(document.getElementById("container"));
     expect(items.some((i) => i.body.includes("Grade this ad"))).toBe(false);
   });
 
-  it("returns an empty array when the container has nothing recognizable", () => {
+  it("returns an empty items array and empty landingPage when the container has nothing recognizable", () => {
     setBody(`<div id="container"><span>Hi</span></div>`);
-    expect(extractGoogleAdText(document.getElementById("container"))).toEqual([]);
+    expect(extractGoogleAdText(document.getElementById("container"))).toEqual({ items: [], landingPage: "" });
+  });
+});
+
+describe("extractRealDestinationUrl", () => {
+  it("decodes a real adurl= redirect param", () => {
+    setBody(
+      '<a id="link" href="https://www.google.com/aclk?sa=L&gclid=x&adurl=https://example.com/lp?utm_term%3Dfoo%26utm_campaign%3Dbar">text</a>',
+    );
+    const url = extractRealDestinationUrl(document.getElementById("link"));
+    expect(url).toBe("https://example.com/lp?utm_term=foo&utm_campaign=bar");
+  });
+
+  it("returns the href as-is when it's already a clean, non-redirect URL", () => {
+    setBody('<a id="link" href="https://productfruits.com/pricing">text</a>');
+    expect(extractRealDestinationUrl(document.getElementById("link"))).toBe("https://productfruits.com/pricing");
+  });
+
+  it("resolves a relative /aclk href against the provided base URL before reading adurl", () => {
+    setBody('<a id="link" href="/aclk?sa=L&adurl=https://example.com/lp">text</a>');
+    const url = extractRealDestinationUrl(document.getElementById("link"), "https://www.google.com/search?q=x");
+    expect(url).toBe("https://example.com/lp");
+  });
+
+  it("returns an empty string for a null/missing anchor", () => {
+    expect(extractRealDestinationUrl(null)).toBe("");
   });
 });
 

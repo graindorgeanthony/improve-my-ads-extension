@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Google Ads Grader — by Improve My Ads",
+  "name": "Google Ads Grader — Free Headline & Ad Copy Checker",
   "short_name": "Google Ads Grader",
   "version": "1.1.0",
-  "description": "Grade any Google Ads headline instantly against real Google Ads factors — query intent, CTAs, extensions. Get a button on every Google search ad, or right-click any text — free, no sign-in.",
+  "description": "Grade Google Ads headlines & ad copy instantly for query intent, CTAs, and extensions — free, no sign-in.",
   "homepage_url": "https://improve-my-ads.com/extension",
   "icons": {
     "16": "icons/icon16.png",

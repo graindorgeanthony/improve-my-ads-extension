@@ -26,6 +26,20 @@
   const PROCESSED_ATTR = "data-ima-scanned";
   const SCAN_INTERVAL_MS = 2500;
 
+  // Ad containers scan() has already found, kept around so a right-click
+  // context-menu grade (triggered from background/service-worker.js) can
+  // find the same ad the user actually clicked on and reuse its exact
+  // `extract` closure — same extraction, same grading call, same result
+  // card as clicking the in-page "Grade this ad" button.
+  const knownAds = [];
+
+  // The contextmenu event fires with the real target element right before
+  // Chrome shows its native menu — background/service-worker.js has no way
+  // to see the DOM at all, so this is the only point where we can capture
+  // what the user actually right-clicked on.
+  let lastContextMenuTarget = null;
+  document.addEventListener("contextmenu", (e) => { lastContextMenuTarget = e.target; }, true);
+
   function host() {
     return location.hostname;
   }
@@ -36,6 +50,16 @@
 
   function cleanText(s) {
     return (s || "").replace(/\s+/g, " ").trim();
+  }
+
+  // Ad copy comes straight off the page (any advertiser's markup) and
+  // findings come from the remote grader — neither is trusted input, so
+  // anything interpolated into a card's innerHTML must go through this
+  // first to avoid a crafted ad/response executing script in our shadow DOM.
+  function escapeHtml(str) {
+    return String(str ?? "").replace(/[&<>"']/g, (c) => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
   }
 
   function isOwnUi(el) {
@@ -408,7 +432,14 @@
       position: "absolute",
       top: "6px",
       right: "6px",
-      zIndex: "999999",
+      // Only needs to clear this ad card's own content (it's appended last
+      // and absolutely positioned, so it already paints on top of that by
+      // default). A near-max z-index here was overkill and let the pill
+      // paint over legitimate page-level overlays it has no business
+      // beating — Google's own search-suggestions/autocomplete dropdown,
+      // sticky headers, cookie banners, etc. (reported live 2026-07-23: the
+      // pill rendered on top of the suggestions dropdown while typing).
+      zIndex: "1",
       fontFamily: "system-ui, -apple-system, sans-serif",
       fontSize: "11px",
       fontWeight: "600",
@@ -508,7 +539,7 @@
     card.className = "card";
     card.innerHTML = `
       <div class="row"><span class="brand">Improve My Ads</span><button class="close">✕</button></div>
-      <div style="font-size:13.5px;">${message}</div>
+      <div style="font-size:13.5px;">${escapeHtml(message)}</div>
     `;
     card.querySelector(".close").addEventListener("click", () => root.host.remove());
     root.appendChild(style);
@@ -536,7 +567,7 @@
     // clicked. Same treatment as the right-click card's own headline quote.
     const headline = items.find((it) => it.label === "Headline")?.body || "";
     const headlineHtml = headline
-      ? `<div class="headline-quote">"${headline.length > 140 ? headline.slice(0, 140) + "…" : headline}"</div>`
+      ? `<div class="headline-quote">"${escapeHtml(headline.length > 140 ? headline.slice(0, 140) + "…" : headline)}"</div>`
       : "";
 
     // Labeled "Estimated" (not just "Google Ads score") deliberately — this
@@ -554,9 +585,9 @@
       .map(
         (f) => `
         <div class="finding">
-          <span class="lens">${f.lens || "Finding"}</span>
-          <p class="issue">${f.issue || ""}</p>
-          <p class="rec">→ ${f.recommendation || ""}</p>
+          <span class="lens">${escapeHtml(f.lens || "Finding")}</span>
+          <p class="issue">${escapeHtml(f.issue || "")}</p>
+          <p class="rec">→ ${escapeHtml(f.recommendation || "")}</p>
         </div>`,
       )
       .join("");
@@ -637,9 +668,34 @@
     for (const { container, extract } of found) {
       if (container.hasAttribute(PROCESSED_ATTR)) continue;
       container.setAttribute(PROCESSED_ATTR, "1");
+      knownAds.push({ container, extract });
       injectButton(container, () => handleGradeClick(extract()));
     }
   }
+
+  // Finds the known ad (from scan()'s own detection, not a fresh guess)
+  // that contains the given element — used to resolve a right-click back to
+  // the specific ad card the user clicked on.
+  function findKnownAdForElement(el) {
+    if (!el) return null;
+    for (const known of knownAds) {
+      if (known.container === el || (known.container.contains && known.container.contains(el))) {
+        return known;
+      }
+    }
+    return null;
+  }
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || message.type !== "IMA_GRADE_CONTEXT_AD") return;
+    const known = findKnownAdForElement(lastContextMenuTarget);
+    if (!known) {
+      sendResponse({ handled: false });
+      return;
+    }
+    handleGradeClick(known.extract());
+    sendResponse({ handled: true });
+  });
 
   const debouncedScan = (() => {
     let scheduled = false;

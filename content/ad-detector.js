@@ -568,6 +568,23 @@
     return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
 
+  // Same "gradeHistory" chrome.storage.local key and entry shape lib/api.js's
+  // saveHistoryEntry() writes (popup.js, service-worker.js's right-click
+  // flow) — inlined rather than imported for the same reason the rest of
+  // this file is inlined (see the top-of-file comment: a module import here
+  // previously failed silently and took detection down on every platform at
+  // once). Without this, an on-page "Grade this ad" check never showed up
+  // in the popup's "Recent checks" list at all, since only the popup/
+  // right-click flows ever wrote to this key.
+  const HISTORY_KEY = "gradeHistory";
+  const MAX_HISTORY = 12;
+  async function saveHistoryEntry(entry) {
+    const { [HISTORY_KEY]: existing = [] } = await chrome.storage.local.get(HISTORY_KEY);
+    const next = [{ ...entry, ts: Date.now() }, ...existing].slice(0, MAX_HISTORY);
+    await chrome.storage.local.set({ [HISTORY_KEY]: next });
+    return next;
+  }
+
   async function previewGoogleAd(text, sourceUrl) {
     try {
       const resp = await fetch(`${SUPABASE_URL}/functions/v1/preview-google-ad`, {
@@ -601,6 +618,20 @@
       return;
     }
     showFindings(result.data, items, landingPage);
+
+    // Only worth remembering with a real score to show — matches the same
+    // guard the popup uses for its own live checks.
+    if (typeof result.data.score === "number") {
+      const headline = items.find((it) => it.label === "Headline")?.body || combined.slice(0, 120);
+      saveHistoryEntry({
+        headline,
+        items,
+        score: result.data.score,
+        findings: result.data.findings,
+        remaining: result.data.remaining,
+        limit: result.data.limit,
+      });
+    }
   }
 
   function scan() {

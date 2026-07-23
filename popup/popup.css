@@ -44,10 +44,11 @@ main { padding: 14px; }
   color: var(--ink-soft);
   margin-bottom: 6px;
 }
+.label.field-spacing { margin-top: 10px; }
+.optional { text-transform: none; font-weight: 400; letter-spacing: 0; }
 
-textarea {
+textarea, input[type="text"] {
   width: 100%;
-  resize: vertical;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 10px;
@@ -56,7 +57,8 @@ textarea {
   background: var(--paper);
   color: var(--ink);
 }
-textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+textarea { resize: vertical; }
+textarea:focus, input[type="text"]:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
 
 .row-between {
   display: flex;
@@ -94,12 +96,28 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
 
 .result { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 
-.score-row { display: flex; align-items: center; gap: 12px; }
+/* Echoes which ad the result below is about — same treatment as the
+   right-click and on-page cards' own headline quote, so all three entry
+   points read as one consistent product. */
+.result-headline {
+  font-size: 12.5px; color: var(--ink-soft); font-style: italic;
+  border-left: 2px solid var(--line); padding-left: 8px; margin: 0 0 10px;
+  max-height: 54px; overflow: hidden;
+}
+
+.score-row { display: flex; align-items: baseline; gap: 10px; }
 .score {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-weight: 700;
   font-size: 32px;
+  line-height: 1;
 }
+.score-label { font-size: 11px; color: var(--ink-soft); }
+
+/* Legacy single-headline result shape (grade-google-ad, via the right-click
+   flow) — kept so an older "Recent checks" entry still renders correctly
+   even though the popup's own live check now uses previewGoogleAd's
+   findings shape instead (see #findings below). */
 .principle {
   display: inline-block;
   font-size: 11px;
@@ -108,9 +126,7 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
   border-radius: 999px;
   padding: 3px 9px;
 }
-
 .diagnosis { font-size: 13px; line-height: 1.5; margin: 8px 0 10px; }
-
 .fixes-label {
   font-size: 11px;
   font-weight: 600;
@@ -119,7 +135,6 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
   color: var(--ink-soft);
   margin-bottom: 6px;
 }
-
 .fix {
   font-size: 12.5px;
   line-height: 1.4;
@@ -130,6 +145,22 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
   cursor: pointer;
 }
 .fix:hover { background: #e7e2d4; }
+
+/* previewGoogleAd's 2-finding teaser shape — same visual language as the
+   on-page card's .finding/.lens/.issue/.rec (content/ad-detector.js) and
+   the right-click card, so a finding reads the same everywhere it shows up. */
+.finding { padding: 8px 0; border-top: 1px solid var(--line); margin-top: 10px; }
+.finding:first-of-type { border-top: none; margin-top: 6px; }
+.finding .lens {
+  display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.3px;
+  text-transform: uppercase; color: var(--warn); background: #9C47081A;
+  border-radius: 999px; padding: 2px 8px; margin-bottom: 5px;
+}
+.finding .issue { font-size: 13px; line-height: 1.45; margin: 0 0 3px; }
+.finding .rec { font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); margin: 0; }
+
+.remaining { margin-top: 10px; text-align: center; font-size: 11px; color: var(--ink-soft); }
+.remaining-low { color: var(--warn); font-weight: 600; }
 
 .cta {
   display: block;

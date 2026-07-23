@@ -16,10 +16,14 @@
 
   <main>
     <form id="grade-form">
-      <label for="headline" class="label">Google Ads headline</label>
-      <textarea id="headline" maxlength="300" rows="3" placeholder="e.g. Stop Wasting Ad Spend | Fix It Today" required></textarea>
-      <div class="row-between" style="justify-content: flex-end;">
-        <span id="char-count" class="char-count">0 / 300</span>
+      <label for="headline" class="label">Headline</label>
+      <input id="headline" type="text" maxlength="120" placeholder="e.g. Stop Wasting Ad Spend | Fix It Today" required />
+
+      <label for="description" class="label field-spacing">Description <span class="optional">· optional</span></label>
+      <textarea id="description" maxlength="500" rows="2" placeholder="e.g. Free trial today. See what's costing you clicks."></textarea>
+
+      <div class="row-between">
+        <span id="char-count" class="char-count">0 / 2000</span>
       </div>
       <button type="submit" id="grade-btn" class="primary-btn">
         <span id="grade-btn-label">Check this ad</span>
@@ -29,16 +33,14 @@
     <div id="error-banner" class="error-banner hidden"></div>
 
     <section id="result" class="result hidden">
+      <div id="result-headline" class="result-headline"></div>
       <div class="score-row">
         <div id="score" class="score">–</div>
-        <div>
-          <div id="principle" class="principle"></div>
-        </div>
+        <div id="score-label" class="score-label">Estimated score</div>
       </div>
-      <p id="diagnosis" class="diagnosis"></p>
-      <div id="fixes-label" class="fixes-label hidden">Try instead (click to copy)</div>
-      <div id="fixes"></div>
+      <div id="findings"></div>
       <a id="full-audit-link" class="cta" href="#" target="_blank" rel="noopener">Run the full Google Ads audit →</a>
+      <div id="remaining" class="remaining hidden"></div>
     </section>
 
     <section class="history-section">

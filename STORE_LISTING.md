@@ -38,8 +38,8 @@ Select a headline — a competitor's ad, your own draft copy, a landing page her
 right-click, and choose "Grade this ad hook." A card appears right there with your score, the
 behavioral principle at play, and three rewritten alternatives you can copy in one click.
 
-AUTOMATIC AD DETECTION ON FACEBOOK, LINKEDIN, GOOGLE SEARCH, AND YOUTUBE
-On these four sites, a small "Grade this ad" button appears directly on ads the extension
+AUTOMATIC AD DETECTION ON FACEBOOK, LINKEDIN, GOOGLE SEARCH, YOUTUBE, REDDIT, AND TIKTOK
+On these sites, a small "Grade this ad" button appears directly on ads the extension
 recognizes — no selecting required. Click it for a free preview: two sample findings pulled from
 the ad's own real text, across different angles (behavioral psychology, copywriting, offer
 clarity, and more). This is best-effort heuristic detection — it may occasionally miss an ad,
@@ -56,7 +56,7 @@ platform & media buying, copywriting, offer, visual design, conversion/CRO) — 
 carries over automatically, so you're not retyping anything.
 
 PRIVACY, PLAIN AND SIMPLE
-Manual grading sends only the exact text you select or paste. The four-site auto-detection scans
+Manual grading sends only the exact text you select or paste. The auto-detection scans
 locally and sends nothing unless you click the button. On every other site, the extension does
 not read the page at all. Full policy: https://improve-my-ads.com/privacy
 

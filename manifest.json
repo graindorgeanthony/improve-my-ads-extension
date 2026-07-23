@@ -44,11 +44,12 @@
         "https://www.google.it/search*",
         "https://www.google.co.in/search*",
         "https://www.google.com.br/search*",
-        "https://*.youtube.com/*"
+        "https://*.youtube.com/*",
+        "https://*.reddit.com/*",
+        "https://*.tiktok.com/*"
       ],
       "js": ["content/ad-detector.js"],
-      "run_at": "document_idle",
-      "type": "module"
+      "run_at": "document_idle"
     }
   ],
   "minimum_chrome_version": "110"

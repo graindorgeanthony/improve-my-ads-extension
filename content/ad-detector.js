@@ -1,18 +1,24 @@
-// On-page ad detector for Facebook, Instagram, LinkedIn, Google Search, and
-// YouTube (see manifest.json's content_scripts.matches). Best-effort
-// heuristic detection — these platforms don't publish a stable "this is an
-// ad" API, so this relies on markup patterns observed in practice (label
-// text like "Sponsored"/"Promoted"/"Ad", and a couple of long-standing
-// attributes). It WILL occasionally miss ads or need updating when a
-// platform changes its markup — the right-click "grade selected text" path
+// On-page ad detector for Facebook, LinkedIn, Google Search, YouTube,
+// Reddit, and TikTok (see manifest.json's content_scripts.matches).
+// Best-effort heuristic detection — these platforms don't publish a stable
+// "this is an ad" API, so this relies on markup patterns observed in
+// practice (label text like "Sponsored"/"Promoted"/"Ad"). It WILL
+// occasionally miss ads or need updating when a platform changes its
+// markup — the right-click "grade selected text" path
 // (background/service-worker.js) always works regardless, as a reliable
 // fallback that doesn't depend on any of this.
 //
-// Registered as a module content script (see manifest.json's
-// content_scripts[].type: "module") so it can import the shared, tested
-// extractor below instead of duplicating it inline.
-import { cleanText, extractGenericAdText, findLeafTextElements, climbToContainer } from "../lib/dom-extract.js";
-
+// Deliberately a PLAIN (non-module) content script, not an ES module — an
+// earlier version imported lib/dom-extract.js via "type": "module" in
+// manifest.json, and that import appears to have failed silently in
+// practice (reported live 2026-07-23: detection stopped working on every
+// platform at once, including ones that worked before, consistent with the
+// whole script never executing rather than a per-platform bug). Everything
+// is inlined here instead — see lib/dom-extract.js for the tested,
+// canonical (but NOT what actually runs) version of the shared helpers;
+// keep the two in sync by hand if either changes.
+//
+// Wrapped in an IIFE to avoid leaking globals into the host page.
 (function () {
   const SUPABASE_URL = "https://fmuaeuzxpxhqociziebs.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_mgY_wxt_HN-mnoq7PWV9TA_q-jWgdgG";
@@ -28,11 +34,88 @@ import { cleanText, extractGenericAdText, findLeafTextElements, climbToContainer
   function platformForHost() {
     const h = host();
     if (h.includes("facebook.com")) return "meta";
-    if (h.includes("instagram.com")) return "instagram";
     if (h.includes("linkedin.com")) return "linkedin";
     if (h.includes("youtube.com")) return "youtube";
+    if (h.includes("reddit.com")) return "reddit";
+    if (h.includes("tiktok.com")) return "tiktok";
     if (h.includes("google.")) return "google";
     return "";
+  }
+
+  function cleanText(s) {
+    return (s || "").replace(/\s+/g, " ").trim();
+  }
+
+  function isOwnUi(el) {
+    return el.hasAttribute && el.hasAttribute("data-ima-button");
+  }
+
+  function isBreadcrumb(t) {
+    return t.includes("›") || /^https?:\/\//.test(t);
+  }
+
+  // Structure-based fallback extractor, used whenever a platform's specific
+  // selectors (class names, data-attributes) come up empty — those rotate
+  // often, while "biggest substantial link text = headline" / "longest
+  // remaining leaf text block = description" holds up more often across
+  // redesigns. Always excludes our own injected button and anything that
+  // looks like a URL breadcrumb.
+  function extractGenericAdText(container) {
+    const items = [];
+
+    let headlineEl = null;
+    let headlineText = "";
+    for (const a of container.querySelectorAll("a")) {
+      if (isOwnUi(a)) continue;
+      const t = cleanText(a.textContent);
+      if (t.length > 15 && !isBreadcrumb(t)) {
+        headlineEl = a;
+        headlineText = t;
+        break;
+      }
+    }
+    if (headlineText) items.push({ label: "Headline", body: headlineText });
+
+    let bestText = "";
+    container.querySelectorAll("div, span, p").forEach((el) => {
+      if (el.children.length > 0) return; // leaf nodes only
+      if (isOwnUi(el) || (headlineEl && headlineEl.contains(el))) return;
+      const t = cleanText(el.textContent);
+      if (!t || t === headlineText || isBreadcrumb(t)) return;
+      if (t.length > bestText.length && t.length > 20) bestText = t;
+    });
+    if (bestText) items.push({ label: "Description", body: bestText });
+
+    return items;
+  }
+
+  // Finds leaf elements (no element children) whose cleaned text exactly
+  // matches `pattern` — used to locate a platform's visible ad label
+  // ("Ad"/"Sponsored"/"Promoted") when no reliable attribute/class is known.
+  function findLeafTextElements(root, pattern) {
+    const matches = [];
+    root.querySelectorAll("span, a, div, td, li").forEach((el) => {
+      if (el.children.length > 0) return;
+      const t = cleanText(el.textContent);
+      if (t && pattern.test(t)) matches.push(el);
+    });
+    return matches;
+  }
+
+  // Climbs from a label element up through ancestors looking for one whose
+  // total text length falls in a plausible "single post/card" range —
+  // stops as soon as one qualifies, so it doesn't grab the entire feed.
+  function climbToContainer(el, opts = {}) {
+    const { minChars = 60, maxChars = 4000, maxClimb = 10 } = opts;
+    let container = el.parentElement;
+    let steps = 0;
+    while (container && steps < maxClimb) {
+      const len = cleanText(container.textContent).length;
+      if (len >= minChars && len <= maxChars) return container;
+      container = container.parentElement;
+      steps++;
+    }
+    return el.parentElement;
   }
 
   // Each finder returns an array of { container: HTMLElement, extract: () => {label, body}[] }
@@ -102,37 +185,44 @@ import { cleanText, extractGenericAdText, findLeafTextElements, climbToContainer
 
   function findGoogleSearchAds() {
     const results = [];
-    // data-text-ad is a commonly-observed marker on Google Search text-ad
-    // result blocks. Falls back to a discrete "Ad" label span as a second
-    // signal since Google's markup rotates.
-    const candidates = new Set();
-    document.querySelectorAll("[data-text-ad]").forEach((el) => candidates.add(el));
-    document.querySelectorAll("span, div").forEach((el) => {
-      if (el.children.length === 0 && cleanText(el.textContent) === "Ad") {
-        const block = el.closest("div[data-hveid], div.g, div.uEierd") || el.parentElement;
-        if (block) candidates.add(block);
-      }
+    const seen = new Set();
+
+    // Strategy 1: data-text-ad is a commonly-observed marker on Google
+    // Search text-ad result blocks.
+    document.querySelectorAll("[data-text-ad]").forEach((el) => {
+      if (!el || el.hasAttribute(PROCESSED_ATTR) || seen.has(el)) return;
+      seen.add(el);
+      results.push({ container: el, extract: () => extractGenericAdText(el) });
     });
-    candidates.forEach((container) => {
-      if (!container || container.hasAttribute(PROCESSED_ATTR)) return;
-      results.push({
-        container,
-        extract: () => {
-          const items = [];
-          const heading = container.querySelector("h3");
-          const headingText = heading ? cleanText(heading.textContent) : "";
-          if (headingText) items.push({ label: "Headline", body: headingText });
-          const desc = container.querySelector('[data-content-feature="1"], .VwiC3b, .MUxGbd');
-          const descText = desc ? cleanText(desc.textContent) : "";
-          if (descText) items.push({ label: "Description", body: descText });
-          // Google's SERP ad markup rotates (e.g. the class-name-based
-          // selectors above go stale) — fall back to the generic
-          // structure-based extractor rather than surfacing "no ad text
-          // found" whenever that happens.
-          return items.length ? items : extractGenericAdText(container);
-        },
-      });
+
+    // Strategy 2: a discrete "Ad" label, or the grouped "Sponsored
+    // result(s)" section header Google also uses (2026-07-23: seen with no
+    // per-item "Ad" badge at all under a shared "Sponsored results"
+    // heading) — for the grouped case, treat each of the header's
+    // following sibling blocks as its own ad candidate.
+    findLeafTextElements(document, /^Ad$/).forEach((label) => {
+      const block = label.closest("div[data-hveid], div.g, div.uEierd") || climbToContainer(label);
+      if (!block || block.hasAttribute(PROCESSED_ATTR) || seen.has(block)) return;
+      seen.add(block);
+      results.push({ container: block, extract: () => extractGenericAdText(block) });
     });
+
+    findLeafTextElements(document, /^Sponsored results?$/).forEach((heading) => {
+      const section = heading.closest("div")?.parentElement || heading.parentElement;
+      if (!section) return;
+      // Each direct child of the section past the heading's own wrapper is
+      // treated as one candidate result block — bounded to a reasonable
+      // count so a mis-identified "section" doesn't tag half the page.
+      Array.from(section.children)
+        .filter((child) => !child.contains(heading) && cleanText(child.textContent).length > 20)
+        .slice(0, 8)
+        .forEach((block) => {
+          if (block.hasAttribute(PROCESSED_ATTR) || seen.has(block)) return;
+          seen.add(block);
+          results.push({ container: block, extract: () => extractGenericAdText(block) });
+        });
+    });
+
     return results;
   }
 
@@ -159,18 +249,70 @@ import { cleanText, extractGenericAdText, findLeafTextElements, climbToContainer
     return results;
   }
 
+  function findRedditAds() {
+    const results = [];
+    const seen = new Set();
+
+    // Reddit labels a promoted post "Promoted" as well, similar to
+    // LinkedIn — usually within a post's metadata row.
+    findLeafTextElements(document, /^Promoted$/).forEach((label) => {
+      const container = label.closest("shreddit-post, article") || climbToContainer(label, { minChars: 40, maxChars: 3000 });
+      if (!container || container.hasAttribute(PROCESSED_ATTR) || seen.has(container)) return;
+      seen.add(container);
+      results.push({
+        container,
+        extract: () => {
+          // shreddit-post exposes the post title as an attribute in
+          // Reddit's current web component markup.
+          const title = container.getAttribute && container.getAttribute("post-title");
+          const items = title ? [{ label: "Headline", body: cleanText(title) }] : [];
+          return items.length ? items : extractGenericAdText(container);
+        },
+      });
+    });
+
+    return results;
+  }
+
+  function findTikTokAds() {
+    const results = [];
+    const seen = new Set();
+
+    // TikTok in-feed video ads are labeled "Sponsored"; the caption text
+    // is usually real accessible DOM text even though the creative itself
+    // is video (unlike YouTube's in-stream ads, which expose almost none).
+    findLeafTextElements(document, /^Sponsored$/).forEach((label) => {
+      const container = climbToContainer(label, { minChars: 30, maxChars: 3000 });
+      if (!container || container.hasAttribute(PROCESSED_ATTR) || seen.has(container)) return;
+      seen.add(container);
+      results.push({
+        container,
+        extract: () => {
+          const caption = container.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"]');
+          const text = caption ? cleanText(caption.textContent) : "";
+          const items = text ? [{ label: "Caption", body: text }] : [];
+          return items.length ? items : extractGenericAdText(container);
+        },
+      });
+    });
+
+    return results;
+  }
+
   function findAds() {
     switch (platformForHost()) {
       case "meta":
         return findFacebookAds();
-      case "instagram":
-        return []; // Instagram's ad markup on web is heavily obfuscated/rotated; not reliably detectable today.
       case "linkedin":
         return findLinkedInAds();
       case "google":
         return findGoogleSearchAds();
       case "youtube":
         return findYouTubeAds();
+      case "reddit":
+        return findRedditAds();
+      case "tiktok":
+        return findTikTokAds();
       default:
         return [];
     }

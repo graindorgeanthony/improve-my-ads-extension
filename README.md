@@ -10,7 +10,7 @@ detects automatically while you browse.
   the behavioral principle at play, and three rewritten alternatives, shown right on the page.
 - **Toolbar popup**: paste a hook manually, pick a platform for sharper calibration, revisit
   your last 12 grades (stored locally only).
-- **On-page ad detection** (Facebook, LinkedIn, Google Search, YouTube): a best-effort heuristic
+- **On-page ad detection** (Facebook, LinkedIn, Google Search, YouTube, Reddit, TikTok): a best-effort heuristic
   scanner adds a "Grade this ad" button directly on ads it recognizes, pulling a free 2-finding
   preview across different lenses (behavioral psychology, copywriting, offer, etc.) from the
   ad's own extracted text — no screenshotting, no manual selection needed on these sites.

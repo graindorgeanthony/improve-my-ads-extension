@@ -519,8 +519,7 @@
     // the product contradicting itself.
     const scoreHtml =
       typeof score === "number"
-        ? `<div class="score-wrap"><div class="score" style="color:${scoreColor(score)}">${score}</div><div class="score-label">Estimated score</div></div>
-           <div class="score-caption">Fast 2-lens read — the full audit checks all 6 and may land differently</div>`
+        ? `<div class="score-wrap"><div class="score" style="color:${scoreColor(score)}">${score}</div><div class="score-label">Estimated score</div></div>`
         : "";
 
     const findingsHtml = findings

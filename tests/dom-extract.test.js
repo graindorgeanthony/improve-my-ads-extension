@@ -158,6 +158,31 @@ describe("extractGoogleAdText", () => {
     expect(landingPage).toBe("https://www.productfruits.com");
   });
 
+  it("extracts the advertiser name as its own item, since the website's downstream brand-detection AI otherwise has no genuinely-visible company name to go on and correctly leaves its confirmation blank", () => {
+    setBody(buildRealisticGoogleAdHtml());
+    const { items } = extractGoogleAdText(document.getElementById("container"));
+    expect(items.find((i) => i.label === "Advertiser")?.body).toBe("Product Fruits");
+  });
+
+  it("does not fabricate an Advertiser item when there's no separate name leaf before the URL breadcrumb", () => {
+    setBody(
+      '<div id="container">' +
+        '<div role="heading">Product Adoption SaaS</div>' +
+        "<span>https://www.productfruits.com</span>" +
+        "<div>#1 SaaS Onboarding Platform for growing teams everywhere.</div>" +
+        "</div>",
+    );
+    const { items } = extractGoogleAdText(document.getElementById("container"));
+    expect(items.some((i) => i.label === "Advertiser")).toBe(false);
+  });
+
+  it("excludes the advertiser name from also being picked up as the Description", () => {
+    setBody(buildRealisticGoogleAdHtml());
+    const { items } = extractGoogleAdText(document.getElementById("container"));
+    const description = items.find((i) => i.label === "Description");
+    expect(description?.body).not.toBe("Product Fruits");
+  });
+
   it("picks the ad's own description over a shorter sitelink description, even with inline formatting (<em>)", () => {
     setBody(buildRealisticGoogleAdHtml());
     const { items } = extractGoogleAdText(document.getElementById("container"));

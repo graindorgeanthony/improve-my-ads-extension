@@ -188,6 +188,28 @@
       used.add(urlLeaf);
     }
 
+    // Advertiser name: confirmed live (2026-07-23) that this is always the
+    // leaf-text element immediately preceding the URL breadcrumb in
+    // document order (e.g. "Semrush" right before "https://www.semrush.com
+    // › on_page › seo_checker"). Worth surfacing as its own item — without
+    // it, the website's own downstream AI brand-detection step (which only
+    // sees the submitted ad copy text, never the URL/advertiser row) has no
+    // genuinely-visible company name or domain to go on and correctly
+    // refuses to guess one, leaving its "auditing <brand>'s ad" confirmation
+    // blank even though the brand was right there in the source page.
+    if (urlLeaf) {
+      const leaves = findLeafTextElements(container, /^.+$/);
+      const idx = leaves.indexOf(urlLeaf);
+      const advertiserLeaf = idx > 0 ? leaves[idx - 1] : null;
+      if (advertiserLeaf) {
+        const t = cleanText(advertiserLeaf.textContent);
+        if (t && t !== headlineText && !isBreadcrumb(t) && t.length >= 2 && t.length <= 60) {
+          items.push({ label: "Advertiser", body: t });
+          used.add(advertiserLeaf);
+        }
+      }
+    }
+
     // Callouts / sitelinks: confirmed live (2026-07-23) across three real
     // ads that Google renders these in at least three different shapes,
     // distinguished by how many of an anchor's DIRECT children have any

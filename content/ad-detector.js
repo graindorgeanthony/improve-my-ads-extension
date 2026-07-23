@@ -57,8 +57,22 @@
   // ("#1 <b>SaaS</b> Onboarding Platform...") count as one text block
   // instead of fragmenting into pieces too short to win the "longest text"
   // heuristic against an unrelated, cleanly-single-node sitelink description.
+  //
+  // A <div> child is only disqualifying if IT ALSO contains real block
+  // structure — a real ad (ChoiceForge, 2026-07-23) runs its description
+  // straight into a trailing price/subscription blurb wrapped in its own
+  // <div>, purely for styling, not as a separate paragraph. A flat "any
+  // div/p/... descendant at all" check disqualified the whole description
+  // as blockish, leaving only that trailing blurb — a strict substring — to
+  // win the "longest text" heuristic on its own. p/li/ul/ol/table/headings
+  // remain hard disqualifiers; only bare <div> wrappers get this
+  // one-level-deeper check. Keep in sync with lib/dom-extract.js.
   function isBlockish(el) {
-    return !!el.querySelector("div, p, li, ul, ol, table, h1, h2, h3, h4, h5, h6");
+    for (const child of el.children) {
+      if (/^(P|LI|UL|OL|TABLE|H1|H2|H3|H4|H5|H6)$/.test(child.tagName)) return true;
+      if (isBlockish(child)) return true;
+    }
+    return false;
   }
 
   // Structure-based fallback extractor, used whenever a platform's specific

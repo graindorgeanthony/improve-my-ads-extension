@@ -336,6 +336,40 @@ describe("extractGoogleAdText", () => {
     expect(items.filter((i) => i.label.startsWith("Callout"))).toHaveLength(0);
     expect(items.find((i) => i.label === "Description")).toBeUndefined();
   });
+
+  it("does not cut the description short at a trailing price/subscription blurb wrapped in its own <div> (a 5th real shape — ChoiceForge ad, 2026-07-23: description div's last sentence runs straight into a nested <div> of price bullets with no separator)", () => {
+    // Without special handling, the description <div> is disqualified as
+    // "blockish" for containing that nested div, leaving only the nested
+    // blurb itself (a strict substring, starting mid-sentence with a stray
+    // leading period) to win the "longest text" heuristic.
+    setBody(
+      '<div id="container" class="TxZNbc"><div class="o2YxLc">' +
+        '<div class="ENsxge">Sponsored</div>' +
+        '<div class="j32ow"><div class="kmHMSe"><span class="suXTEd">ChoiceForge</span><span class="oPGG5e">https://getchoiceforge.com</span></div></div>' +
+        '<div class="UEmjGf"><a href="https://getchoiceforge.com/founders">{KeyWord:Headline Testing Tool} - Pick the Winner in 10 Minutes - No Panel Needed</a></div>' +
+        '<div class="IOu8ib">Test headlines, logos, and pricing wording with AI personas. Get a ranked winner and “why it wins.' +
+        '<div class="M7Xdcd"><span class="PBCWW"><span>.</span><span> No subscription. </span><span> $0.20 per response. </span><span> Pay-as-you-go. </span><span> Results in minutes. </span></span></div>' +
+        "</div>" +
+        '<div class="c23deb">' +
+        '<div><a href="https://getchoiceforge.com/marketers" class="m093Kc">Marketers</a></div>' +
+        '<div><a href="https://getchoiceforge.com/designers" class="m093Kc">Product Managers</a></div>' +
+        '<div><a href="https://getchoiceforge.com/founders" class="m093Kc">Founders</a></div>' +
+        "</div>" +
+        "</div></div>",
+    );
+    const { items, landingPage } = extractGoogleAdText(document.getElementById("container"));
+
+    expect(items.find((i) => i.label === "Headline")?.body).toBe(
+      "{KeyWord:Headline Testing Tool} - Pick the Winner in 10 Minutes - No Panel Needed",
+    );
+    expect(items.find((i) => i.label === "Advertiser")?.body).toBe("ChoiceForge");
+    expect(landingPage).toBe("https://getchoiceforge.com/founders");
+
+    const description = items.find((i) => i.label === "Description");
+    expect(description?.body).toMatch(/^Test headlines, logos, and pricing wording/);
+    expect(description?.body).toContain("No subscription");
+    expect(description?.body).not.toMatch(/^\. No subscription/);
+  });
 });
 
 describe("extractRealDestinationUrl", () => {

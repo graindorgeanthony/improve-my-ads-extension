@@ -274,6 +274,43 @@ describe("extractGoogleAdText", () => {
     const callouts = items.filter((i) => i.label.startsWith("Callout"));
     expect(callouts.map((c) => c.body)).toEqual(["SEO Checker", "Try for Free", "Site Audit"]);
   });
+
+  it("ignores an image-grid extension's image-only anchors (a 4th real shape — 2026-07-23: a Product Fruits ad using <w-ad-grid-image>, no per-item text at all)", () => {
+    // Each grid-image anchor wraps only an <img> (plus an empty spacer div)
+    // — zero text anywhere. Confirms these fall through as empty-title
+    // candidates and get rejected, rather than becoming garbage callouts
+    // with an empty title, and that the deeply nested wrapper divs don't
+    // get mistaken for a "Description" candidate either (they're excluded
+    // by isBlockish, since they contain further div descendants).
+    setBody(
+      '<div id="container" data-text-ad="1">' +
+        '<a class="sVXRqc" href="https://productfruits.com/lp/user-onboarding-2" ' +
+        'data-rw="https://www.google.com/aclk?sa=L&gclid=x&adurl=https://productfruits.com/lp/user-onboarding-2?utm_term%3Dsoftware%2520adoption%26utm_campaign%3DEurope">' +
+        '<div role="heading"><span>#1 SaaS Onboarding Platform - Software Adoption</span></div>' +
+        '<div class="d8lRkd"><span>Product Fruits</span><span>https://www.productfruits.com</span></div>' +
+        "</a>" +
+        '<div class="d8lRkd oVrGyb"><span>Product Fruits</span><span>https://www.productfruits.com</span></div>' +
+        "<w-ad-grid-image>" +
+        '<div class="CJr3Gf"><div class="KoShGb">' +
+        '<a class="Ks5tbe" href="https://www.google.com/aclk?sa=L&adurl=https://productfruits.com/a">' +
+        '<div class="q1MG4e ZGomKf"><img alt="Image from productfruits.com"><div class="LLO8yd"></div></div>' +
+        "</a>" +
+        '<a class="Ks5tbe" href="https://www.google.com/aclk?sa=L&adurl=https://productfruits.com/b">' +
+        '<div class="q1MG4e ZGomKf"><img alt="Image from productfruits.com"><div class="LLO8yd"></div></div>' +
+        "</a>" +
+        "</div></div>" +
+        "</w-ad-grid-image>" +
+        "</div>",
+    );
+    const { items, landingPage } = extractGoogleAdText(document.getElementById("container"));
+
+    expect(items.find((i) => i.label === "Headline")?.body).toBe("#1 SaaS Onboarding Platform - Software Adoption");
+    expect(landingPage).toBe(
+      "https://productfruits.com/lp/user-onboarding-2?utm_term=software%20adoption&utm_campaign=Europe",
+    );
+    expect(items.filter((i) => i.label.startsWith("Callout"))).toHaveLength(0);
+    expect(items.find((i) => i.label === "Description")).toBeUndefined();
+  });
 });
 
 describe("extractRealDestinationUrl", () => {

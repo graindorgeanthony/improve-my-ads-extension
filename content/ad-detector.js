@@ -8,9 +8,11 @@
 // (background/service-worker.js) always works regardless, as a reliable
 // fallback that doesn't depend on any of this.
 //
-// This file is a plain content script (not a module — see manifest.json),
-// so everything is wrapped in an IIFE to avoid leaking globals into the
-// host page.
+// Registered as a module content script (see manifest.json's
+// content_scripts[].type: "module") so it can import the shared, tested
+// extractor below instead of duplicating it inline.
+import { cleanText, extractGenericAdText, findLeafTextElements, climbToContainer } from "../lib/dom-extract.js";
+
 (function () {
   const SUPABASE_URL = "https://fmuaeuzxpxhqociziebs.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_mgY_wxt_HN-mnoq7PWV9TA_q-jWgdgG";
@@ -33,20 +35,17 @@
     return "";
   }
 
-  function cleanText(s) {
-    return (s || "").replace(/\s+/g, " ").trim();
-  }
-
   // Each finder returns an array of { container: HTMLElement, extract: () => {label, body}[] }
   function findFacebookAds() {
     const results = [];
-    // data-ad-preview="message" marks an ad's primary text in Meta's feed
-    // markup — a long-standing attribute widely relied on by third-party ad
-    // tooling. We climb a few ancestors to find a reasonably-bounded "card"
-    // container to attach the button to.
+    const seen = new Set();
+
+    // Strategy 1: data-ad-preview="message" marks an ad's primary text in
+    // Meta's feed markup for text-led ads — a long-standing attribute.
     document.querySelectorAll('[data-ad-preview="message"]').forEach((el) => {
       const container = el.closest('[role="article"]') || el.parentElement?.parentElement || el.parentElement || el;
-      if (!container || container.hasAttribute(PROCESSED_ATTR)) return;
+      if (!container || container.hasAttribute(PROCESSED_ATTR) || seen.has(container)) return;
+      seen.add(container);
       results.push({
         container,
         extract: () => {
@@ -56,30 +55,48 @@
           const heading = container.querySelector('[role="heading"]');
           const headingText = heading ? cleanText(heading.textContent) : "";
           if (headingText && headingText !== primary) items.push({ label: "Headline", body: headingText });
-          return items;
+          return items.length ? items : extractGenericAdText(container);
         },
       });
     });
+
+    // Strategy 2: video/image-led ads (no data-ad-preview text) still show
+    // a visible "Sponsored" or "Ad" label — find that leaf label directly
+    // and climb to a plausibly-sized post container instead of depending
+    // on any specific attribute or class name, which rotate often.
+    findLeafTextElements(document, /^(Ad|Sponsored)$/).forEach((label) => {
+      const container = label.closest('[role="article"]') || climbToContainer(label);
+      if (!container || container.hasAttribute(PROCESSED_ATTR) || seen.has(container)) return;
+      seen.add(container);
+      results.push({ container, extract: () => extractGenericAdText(container) });
+    });
+
     return results;
   }
 
   function findLinkedInAds() {
     const results = [];
-    document.querySelectorAll(".feed-shared-update-v2").forEach((container) => {
-      if (container.hasAttribute(PROCESSED_ATTR)) return;
-      const promotedLabel = Array.from(container.querySelectorAll("span")).find((s) => /\bPromoted\b/.test(s.textContent || ""));
-      if (!promotedLabel) return;
+    const seen = new Set();
+
+    // "Promoted" is LinkedIn's own visible label for an ad in-feed — a much
+    // more stable signal than any specific component class name (which has
+    // changed under us before, e.g. feed-shared-update-v2 not always
+    // matching the live post wrapper). Find the label first, then climb.
+    findLeafTextElements(document, /^Promoted$/).forEach((label) => {
+      const container = label.closest(".feed-shared-update-v2") || climbToContainer(label, { minChars: 40, maxChars: 3000 });
+      if (!container || container.hasAttribute(PROCESSED_ATTR) || seen.has(container)) return;
+      seen.add(container);
       results.push({
         container,
         extract: () => {
-          const items = [];
           const commentary = container.querySelector(".feed-shared-inline-show-more-text, .feed-shared-text");
           const body = commentary ? cleanText(commentary.textContent) : "";
-          if (body) items.push({ label: "Primary text", body });
-          return items;
+          const items = body ? [{ label: "Primary text", body }] : [];
+          return items.length ? items : extractGenericAdText(container);
         },
       });
     });
+
     return results;
   }
 
@@ -108,7 +125,11 @@
           const desc = container.querySelector('[data-content-feature="1"], .VwiC3b, .MUxGbd');
           const descText = desc ? cleanText(desc.textContent) : "";
           if (descText) items.push({ label: "Description", body: descText });
-          return items;
+          // Google's SERP ad markup rotates (e.g. the class-name-based
+          // selectors above go stale) — fall back to the generic
+          // structure-based extractor rather than surfacing "no ad text
+          // found" whenever that happens.
+          return items.length ? items : extractGenericAdText(container);
         },
       });
     });

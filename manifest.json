@@ -47,7 +47,8 @@
         "https://*.youtube.com/*"
       ],
       "js": ["content/ad-detector.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "type": "module"
     }
   ],
   "minimum_chrome_version": "110"

@@ -1,0 +1,13 @@
+{
+  "name": "improve-my-ads-extension",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Ad Hook Grader — Chrome extension companion to improve-my-ads.com",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
+  }
+}

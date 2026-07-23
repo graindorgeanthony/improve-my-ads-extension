@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "Ad Hook Grader — by Improve My Ads",
+  "short_name": "Ad Hook Grader",
+  "version": "1.0.0",
+  "description": "Grade any ad headline or hook instantly for scroll-stop psychology. Right-click text anywhere, or paste in the popup — free, no sign-in.",
+  "homepage_url": "https://improve-my-ads.com/extension",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Grade an ad hook"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "permissions": ["contextMenus", "storage", "scripting", "activeTab"],
+  "host_permissions": [
+    "https://fmuaeuzxpxhqociziebs.supabase.co/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.facebook.com/*",
+        "https://*.linkedin.com/*",
+        "https://www.google.com/search*",
+        "https://www.google.co.uk/search*",
+        "https://www.google.ca/search*",
+        "https://www.google.com.au/search*",
+        "https://www.google.de/search*",
+        "https://www.google.fr/search*",
+        "https://www.google.es/search*",
+        "https://www.google.it/search*",
+        "https://www.google.co.in/search*",
+        "https://www.google.com.br/search*",
+        "https://*.youtube.com/*"
+      ],
+      "js": ["content/ad-detector.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "minimum_chrome_version": "110"
+}

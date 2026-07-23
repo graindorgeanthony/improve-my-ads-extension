@@ -11,10 +11,11 @@ previews sample findings on Google Search ads it detects automatically while you
 - **Toolbar popup**: a static explainer of what Improve My Ads does and how to use the extension,
   with a link straight into the full audit tool — no form, nothing stored.
 - **On-page ad detection (Google Search only)**: a best-effort heuristic scanner adds a "Grade
-  this ad" button directly on Google Search ads it recognizes, pulling a free 2-finding preview
-  across different lenses (behavioral psychology, platform & media buying, copywriting, offer,
-  etc.) from the ad's own extracted text (headline, description, advertiser, sitelinks/callouts)
-  — no screenshotting, no manual selection needed.
+  this ad" button directly on Google Search ads it recognizes, pulling a free preview (up to 2
+  findings — fewer, or none, if the ad is genuinely solid) across different lenses (behavioral
+  psychology, platform & media buying, copywriting, offer, etc.) from the ad's own extracted text
+  (headline, description, advertiser, sitelinks/callouts) — no screenshotting, no manual selection
+  needed.
 - **Full-report handoff**: any result links straight into improve-my-ads.com's full Google Ads
   audit, with the ad's text prefilled via `/extension-handoff` → `/audit/google-ads-optimization`.
 
@@ -46,7 +47,8 @@ generic, multi-platform `/tools/ad-hook-grader` and is untouched by this):
   framing, CTR calibration) — the same vocabulary as the `google-ads-optimization` audit type's
   own system prompt.
 - `preview-google-ad` — multi-field Google ad teaser (headline/description/advertiser/callouts),
-  2 capped findings, using the same Google-specific criteria.
+  up to 2 findings (fewer or none if the ad is genuinely strong — never padded), using the same
+  Google-specific criteria.
 
 Both need `supabase functions deploy grade-google-ad preview-google-ad` before they're live (no
 linked CLI session available when this was written — same recurring blocker as every prior change

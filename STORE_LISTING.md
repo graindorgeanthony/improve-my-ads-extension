@@ -41,11 +41,12 @@ Google Ads factor at play, and three rewritten alternatives you can copy in one 
 
 AUTOMATIC AD DETECTION ON GOOGLE SEARCH
 On Google Search results pages, a small "Grade this ad" button appears directly on ads the
-extension recognizes — no selecting required. Click it for a free preview: two sample findings
-pulled from the ad's own real text (headline, description, advertiser, sitelinks/callouts), across
-different angles (query relevance, extensions usage, copywriting, offer clarity, and more). This
-is best-effort heuristic detection — it may occasionally miss an ad, and the manual right-click
-flow above always works as a fallback everywhere else.
+extension recognizes — no selecting required. Click it for a free preview: up to two sample
+findings pulled from the ad's own real text (headline, description, advertiser, sitelinks/
+callouts), across different angles (query relevance, extensions usage, copywriting, offer
+clarity, and more) — fewer, or none, if the ad is already solid; findings are never padded to
+hit a quota. This is best-effort heuristic detection — it may occasionally miss an ad, and the
+manual right-click flow above always works as a fallback everywhere else.
 
 TOOLBAR POPUP
 Click the icon any time for a quick reminder of how the extension works, and a one-click shortcut

@@ -342,6 +342,20 @@
       results.push({ container: block, extract: () => extractGoogleOrFallback(block) });
     });
 
+    // Strategy 2b: a standalone, singular "Sponsored" label (not the
+    // grouped "Sponsored results" header below). Real report, 2026-07-23:
+    // Google's advertiser-preview overlay — shown when you're signed into
+    // the Ads account running an ad and search for it while its campaign
+    // is paused, with a "Resume your campaign"/"Ad strength" panel layered
+    // on top — labels the ad card this way instead of "Ad", so it fell
+    // through every existing strategy and was never detected.
+    findLeafTextElements(document, /^Sponsored$/).forEach((label) => {
+      const block = label.closest("div[data-hveid], div.g, div.uEierd") || climbToContainer(label);
+      if (!block || block.hasAttribute(PROCESSED_ATTR) || seen.has(block)) return;
+      seen.add(block);
+      results.push({ container: block, extract: () => extractGoogleOrFallback(block) });
+    });
+
     findLeafTextElements(document, /^Sponsored results?$/).forEach((heading) => {
       const section = heading.closest("div")?.parentElement || heading.parentElement;
       if (!section) return;

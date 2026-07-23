@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { cleanText, extractGenericAdText, findLeafTextElements, climbToContainer } from "../lib/dom-extract.js";
+import { cleanText, extractGenericAdText, extractGoogleAdText, findLeafTextElements, climbToContainer } from "../lib/dom-extract.js";
 
 function setBody(html) {
   document.body.innerHTML = html;
@@ -70,6 +70,105 @@ describe("extractGenericAdText", () => {
   it("returns an empty array when there's nothing substantial to extract", () => {
     setBody(`<div id="container"><span>Hi</span></div>`);
     expect(extractGenericAdText(document.getElementById("container"))).toEqual([]);
+  });
+});
+
+describe("extractGoogleAdText", () => {
+  it("does not contaminate the headline with a glued-together advertiser name + URL (real bug, 2026-07-23 live report)", () => {
+    // Reproduces the exact reported bug: a whole-card <a> wraps a
+    // role="heading" title, then the advertiser name and URL immediately
+    // after with NO whitespace between them in the source — the live
+    // report's wrong headline was literally
+    // "Product Adoption SaaSProduct Fruitshttps://www.productfruits.com".
+    setBody(
+      '<div id="container">' +
+        '<a href="https://www.google.com/aclk?adurl=x">' +
+        '<div role="heading">Product Adoption SaaS</div>' +
+        "<span>Product Fruits</span>" +
+        "<span>https://www.productfruits.com</span>" +
+        "</a>" +
+        "<div>#1 <b>SaaS</b> Onboarding Platform — Stop losing users! Fix poor onboarding &amp; retention with the #1 product onboarding tool. Get the...</div>" +
+        "</div>",
+    );
+    const items = extractGoogleAdText(document.getElementById("container"));
+    const headline = items.find((i) => i.label === "Headline");
+    expect(headline?.body).toBe("Product Adoption SaaS");
+    expect(headline?.body).not.toMatch(/productfruits\.com/);
+    expect(headline?.body).not.toMatch(/Product Fruits/);
+  });
+
+  it("extracts the landing page URL as its own item, separate from the headline", () => {
+    setBody(
+      '<div id="container">' +
+        '<a href="https://www.google.com/aclk?adurl=x">' +
+        '<div role="heading">Product Adoption SaaS</div>' +
+        "<span>Product Fruits</span>" +
+        "<span>https://www.productfruits.com</span>" +
+        "</a>" +
+        "<div>#1 SaaS Onboarding Platform for growing teams who need real adoption data.</div>" +
+        "</div>",
+    );
+    const items = extractGoogleAdText(document.getElementById("container"));
+    expect(items.find((i) => i.label === "Landing page")?.body).toBe("https://www.productfruits.com");
+  });
+
+  it("picks the ad's own description over a shorter sitelink description, even with inline bold formatting", () => {
+    setBody(
+      '<div id="container">' +
+        '<a href="https://www.google.com/aclk?adurl=x">' +
+        '<div role="heading">Product Adoption SaaS</div>' +
+        "<span>Product Fruits</span><span>https://www.productfruits.com</span>" +
+        "</a>" +
+        "<div>#1 <b>SaaS</b> Onboarding Platform — Stop losing users! Fix poor onboarding &amp; retention with the #1 product onboarding tool.</div>" +
+        '<div><a href="#">No-Code Onboarding UI Flows</a><div>Boost conversions and retention with AI-powered onboarding that keeps users engaged.</div></div>' +
+        "</div>",
+    );
+    const items = extractGoogleAdText(document.getElementById("container"));
+    const description = items.find((i) => i.label === "Description");
+    expect(description?.body).toMatch(/^#1 SaaS Onboarding Platform/);
+    expect(description?.body).not.toMatch(/Boost conversions/);
+  });
+
+  it("extracts sitelink/callout title+description pairs, capped at 5", () => {
+    const sitelinks = [
+      ["Fair pricing", "Find a plan that works for you Unbeatable price-value ratio"],
+      ["Product adoption", "Spotlight new releases in-app Drive adoption of unused features"],
+      ["User onboarding", "Guide new users to their first win Turn signups into active users"],
+      ["No-Code Onboarding UI Flows", "Boost conversions and retention with AI-powered onboarding that keeps users engaged."],
+      ["Trial conversion", "Turn trials into paying customers Stop losing trials to inaction"],
+      ["Extra sixth sitelink", "This one should be dropped by the cap."],
+    ]
+      .map(([title, desc]) => `<div><a href="#">${title}</a><div>${desc}</div></div>`)
+      .join("");
+    setBody(
+      '<div id="container">' +
+        '<a href="https://www.google.com/aclk?adurl=x"><div role="heading">Product Adoption SaaS</div><span>Product Fruits</span><span>https://www.productfruits.com</span></a>' +
+        "<div>#1 SaaS Onboarding Platform, built for growing product-led teams everywhere.</div>" +
+        sitelinks +
+        "</div>",
+    );
+    const items = extractGoogleAdText(document.getElementById("container"));
+    const callouts = items.filter((i) => i.label.startsWith("Callout"));
+    expect(callouts).toHaveLength(5);
+    expect(callouts[0].body).toBe("Fair pricing — Find a plan that works for you Unbeatable price-value ratio");
+    expect(callouts.some((c) => c.body.includes("Extra sixth sitelink"))).toBe(false);
+  });
+
+  it("never leaks the injected 'Grade this ad' button text into any extracted item", () => {
+    setBody(
+      '<div id="container">' +
+        '<button data-ima-button="1">Grade this ad</button>' +
+        '<a href="https://www.google.com/aclk?adurl=x"><div role="heading">Product Adoption SaaS</div><span>Product Fruits</span><span>https://www.productfruits.com</span></a>' +
+        "<div>#1 SaaS Onboarding Platform for growing teams everywhere who need it.</div>" +
+        "</div>",
+    );
+    const items = extractGoogleAdText(document.getElementById("container"));
+    expect(items.some((i) => i.body.includes("Grade this ad"))).toBe(false);
+  });
+
+  it("returns an empty array when the container has nothing recognizable", () => {
+    setBody(`<div id="container"><span>Hi</span></div>`);
+    expect(extractGoogleAdText(document.getElementById("container"))).toEqual([]);
   });
 });
 

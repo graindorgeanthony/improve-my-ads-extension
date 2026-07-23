@@ -2,29 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Ad Hook Grader</title>
+  <title>Google Ads Grader</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <header class="header">
     <img src="../icons/icon32.png" alt="" width="20" height="20" />
     <div class="header-text">
-      <div class="title">Ad Hook Grader</div>
+      <div class="title">Google Ads Grader</div>
       <a class="subtitle" href="https://improve-my-ads.com" target="_blank" rel="noopener">by Improve My Ads</a>
     </div>
   </header>
 
   <main>
     <form id="grade-form">
-      <label for="headline" class="label">Headline or opening line</label>
-      <textarea id="headline" maxlength="300" rows="3" placeholder="e.g. Stop paying for ads that don't convert" required></textarea>
-      <div class="row-between">
-        <select id="platform" aria-label="Platform">
-        </select>
+      <label for="headline" class="label">Google Ads headline</label>
+      <textarea id="headline" maxlength="300" rows="3" placeholder="e.g. Stop Wasting Ad Spend | Fix It Today" required></textarea>
+      <div class="row-between" style="justify-content: flex-end;">
         <span id="char-count" class="char-count">0 / 300</span>
       </div>
       <button type="submit" id="grade-btn" class="primary-btn">
-        <span id="grade-btn-label">Grade this hook</span>
+        <span id="grade-btn-label">Check this ad</span>
       </button>
     </form>
 
@@ -40,12 +38,12 @@
       <p id="diagnosis" class="diagnosis"></p>
       <div id="fixes-label" class="fixes-label hidden">Try instead (click to copy)</div>
       <div id="fixes"></div>
-      <a id="full-audit-link" class="cta" href="#" target="_blank" rel="noopener">Run the full 6-lens audit →</a>
+      <a id="full-audit-link" class="cta" href="#" target="_blank" rel="noopener">Run the full Google Ads audit →</a>
     </section>
 
     <section class="history-section">
       <button id="history-toggle" class="history-toggle" type="button">
-        <span>Recent grades</span>
+        <span>Recent checks</span>
         <span id="history-chevron">▾</span>
       </button>
       <div id="history-list" class="history-list hidden"></div>
@@ -53,8 +51,8 @@
   </main>
 
   <footer class="footer">
-    <span>Free · No sign-in · 8 grades/hour</span>
-    <a href="https://improve-my-ads.com/tools/ad-hook-grader" target="_blank" rel="noopener">Open full tool ↗</a>
+    <span>Free · No sign-in · 8 checks/hour</span>
+    <a href="https://improve-my-ads.com/audit/google-ads-optimization" target="_blank" rel="noopener">Open full tool ↗</a>
   </footer>
 
   <script src="popup.js" type="module"></script>

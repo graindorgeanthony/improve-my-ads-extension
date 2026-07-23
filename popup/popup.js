@@ -1,8 +1,7 @@
-import { gradeHook, fullToolUrl, saveHistoryEntry, getHistory, PLATFORMS } from "../lib/api.js";
+import { gradeGoogleAd, fullAuditHandoffUrl, saveHistoryEntry, getHistory } from "../lib/api.js";
 
 const form = document.getElementById("grade-form");
 const headlineEl = document.getElementById("headline");
-const platformEl = document.getElementById("platform");
 const charCountEl = document.getElementById("char-count");
 const gradeBtn = document.getElementById("grade-btn");
 const gradeBtnLabel = document.getElementById("grade-btn-label");
@@ -18,13 +17,6 @@ const historyToggle = document.getElementById("history-toggle");
 const historyChevron = document.getElementById("history-chevron");
 const historyList = document.getElementById("history-list");
 
-for (const p of PLATFORMS) {
-  const opt = document.createElement("option");
-  opt.value = p.value;
-  opt.textContent = p.label;
-  platformEl.appendChild(opt);
-}
-
 headlineEl.addEventListener("input", () => {
   charCountEl.textContent = `${headlineEl.value.length} / 300`;
 });
@@ -35,11 +27,11 @@ function scoreColor(score) {
   return "#B0362E";
 }
 
-function renderResult({ headline, platform, score, principle, diagnosis, fixes }) {
+function renderResult({ headline, score, principle, diagnosis, fixes }) {
   const color = scoreColor(score);
   scoreEl.textContent = String(score);
   scoreEl.style.color = color;
-  principleEl.textContent = principle || "Scroll-stop score";
+  principleEl.textContent = principle || "Google Ads score";
   principleEl.style.color = color;
   principleEl.style.background = `${color}1A`;
   diagnosisEl.textContent = diagnosis || "";
@@ -64,7 +56,7 @@ function renderResult({ headline, platform, score, principle, diagnosis, fixes }
     fixesLabelEl.classList.add("hidden");
   }
 
-  fullAuditLink.href = fullToolUrl(headline, platform);
+  fullAuditLink.href = fullAuditHandoffUrl([{ label: "Headline", body: headline }]);
   resultEl.classList.remove("hidden");
 }
 
@@ -76,26 +68,25 @@ function showError(message) {
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const headline = headlineEl.value.trim();
-  const platform = platformEl.value;
   if (!headline || gradeBtn.disabled) return;
 
   errorBanner.classList.add("hidden");
   resultEl.classList.add("hidden");
   gradeBtn.disabled = true;
-  gradeBtnLabel.textContent = "Grading…";
+  gradeBtnLabel.textContent = "Checking…";
 
-  const result = await gradeHook(headline, platform);
+  const result = await gradeGoogleAd(headline);
 
   gradeBtn.disabled = false;
-  gradeBtnLabel.textContent = "Grade this hook";
+  gradeBtnLabel.textContent = "Check this ad";
 
   if (!result.ok) {
     showError(result.error);
     return;
   }
 
-  renderResult({ headline, platform, ...result.data });
-  const history = await saveHistoryEntry({ headline, platform, ...result.data });
+  renderResult({ headline, ...result.data });
+  const history = await saveHistoryEntry({ headline, ...result.data });
   renderHistory(history);
 });
 
@@ -110,7 +101,7 @@ function timeAgo(ts) {
 function renderHistory(history) {
   historyList.innerHTML = "";
   if (!history.length) {
-    historyList.innerHTML = `<div class="history-empty">No grades yet — try one above.</div>`;
+    historyList.innerHTML = `<div class="history-empty">No checks yet — try one above.</div>`;
     return;
   }
   for (const entry of history) {
@@ -128,7 +119,6 @@ function renderHistory(history) {
     row.appendChild(textSpan);
     row.addEventListener("click", () => {
       headlineEl.value = entry.headline;
-      platformEl.value = entry.platform || "";
       charCountEl.textContent = `${entry.headline.length} / 300`;
       errorBanner.classList.add("hidden");
       renderResult(entry);

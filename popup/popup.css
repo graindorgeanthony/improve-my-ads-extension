@@ -65,15 +65,6 @@ textarea:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
   margin-top: 8px;
 }
 
-select {
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 5px 6px;
-  font-size: 12px;
-  background: var(--paper);
-  color: var(--ink);
-}
-
 .char-count { font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
 .primary-btn {

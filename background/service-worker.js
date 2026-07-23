@@ -1,11 +1,11 @@
-import { gradeHook, saveHistoryEntry, fullToolUrl } from "../lib/api.js";
+import { gradeGoogleAd, saveHistoryEntry, fullAuditHandoffUrl } from "../lib/api.js";
 
-const MENU_ID = "grade-ad-hook";
+const MENU_ID = "check-google-ad";
 
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.contextMenus.create({
     id: MENU_ID,
-    title: 'Grade this ad hook — "%s"',
+    title: 'Check this Google ad — "%s"',
     contexts: ["selection"],
   });
 
@@ -28,13 +28,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   await injectLoading(tab.id);
-  const result = await gradeHook(headline);
+  const result = await gradeGoogleAd(headline);
   if (!result.ok) {
     await injectToast(tab.id, result.error);
     return;
   }
-  await saveHistoryEntry({ headline, platform: "", ...result.data });
-  await injectResultCard(tab.id, { headline, ...result.data, fullAuditUrl: fullToolUrl(headline, "") });
+  await saveHistoryEntry({ headline, ...result.data });
+  await injectResultCard(tab.id, {
+    headline,
+    ...result.data,
+    fullAuditUrl: fullAuditHandoffUrl([{ label: "Headline", body: headline }]),
+  });
 });
 
 async function injectLoading(tabId) {
@@ -67,7 +71,7 @@ async function injectResultCard(tabId, payload) {
 // DOM host so the page's own CSS can never bleed in or be bled onto.
 
 function ensureHost() {
-  const HOST_ID = "__ima-hook-grader-host";
+  const HOST_ID = "__ima-google-ads-grader-host";
   let host = document.getElementById(HOST_ID);
   if (host) {
     host.shadowRoot.innerHTML = "";
@@ -108,7 +112,7 @@ function showLoadingCard() {
       <span class="brand">Improve My Ads</span>
       <button class="close" aria-label="Close">✕</button>
     </div>
-    <div style="font-size:13.5px; color:#655F52;">Grading your hook…</div>
+    <div style="font-size:13.5px; color:#655F52;">Checking your ad…</div>
   `;
   card.querySelector(".close").addEventListener("click", () => root.host.remove());
   root.appendChild(style);
@@ -167,7 +171,7 @@ function showResultCardImpl(payload) {
     <div class="score-wrap">
       <div class="score">${score}</div>
       <div>
-        <div class="principle">${principle || "Scroll-stop score"}</div>
+        <div class="principle">${principle || "Google Ads score"}</div>
       </div>
     </div>
     <div class="diagnosis">${diagnosis || ""}</div>
@@ -177,7 +181,7 @@ function showResultCardImpl(payload) {
           fixes.map((f) => `<div class="fix" data-fix="${f.replace(/"/g, "&quot;")}">${f}</div>`).join("")
         : ""
     }
-    <a class="cta" href="${fullAuditUrl}" target="_blank" rel="noopener">Run the full 6-lens audit →</a>
+    <a class="cta" href="${fullAuditUrl}" target="_blank" rel="noopener">Run the full Google Ads audit →</a>
   `;
   card.querySelector(".close").addEventListener("click", () => root.host.remove());
   card.querySelectorAll(".fix").forEach((el) => {

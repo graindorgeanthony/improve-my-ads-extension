@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Ad Hook Grader — by Improve My Ads",
-  "short_name": "Ad Hook Grader",
-  "version": "1.0.0",
-  "description": "Grade any ad headline or hook instantly for scroll-stop psychology. Right-click text anywhere, or paste in the popup — free, no sign-in.",
+  "name": "Google Ads Grader — by Improve My Ads",
+  "short_name": "Google Ads Grader",
+  "version": "1.1.0",
+  "description": "Grade any Google Ads headline instantly against real Google Ads factors — query intent, CTAs, extensions. Right-click text anywhere, or paste in the popup — free, no sign-in.",
   "homepage_url": "https://improve-my-ads.com/extension",
   "icons": {
     "16": "icons/icon16.png",
@@ -19,7 +19,7 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "Grade an ad hook"
+    "default_title": "Grade a Google ad"
   },
   "background": {
     "service_worker": "background/service-worker.js",
@@ -32,8 +32,6 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.facebook.com/*",
-        "https://*.linkedin.com/*",
         "https://www.google.com/search*",
         "https://www.google.co.uk/search*",
         "https://www.google.ca/search*",
@@ -43,10 +41,7 @@
         "https://www.google.es/search*",
         "https://www.google.it/search*",
         "https://www.google.co.in/search*",
-        "https://www.google.com.br/search*",
-        "https://*.youtube.com/*",
-        "https://*.reddit.com/*",
-        "https://*.tiktok.com/*"
+        "https://www.google.com.br/search*"
       ],
       "js": ["content/ad-detector.js"],
       "run_at": "document_idle"

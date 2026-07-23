@@ -250,6 +250,30 @@ describe("extractGoogleAdText", () => {
       "Compact two",
     ]);
   });
+
+  it("detects title-only sitelinks that have an empty-text icon sibling (a THIRD real shape — Semrush ad, 2026-07-23: 'SEO Checker' / 'Try for Free' / 'Site Audit' rows with no description)", () => {
+    // The icon span renders an inline SVG with no text content at all —
+    // it must be filtered out rather than counted as a real child, or a
+    // real 1-child title-only sitelink looks like a 2-child boxed one and
+    // (title, "") gets treated as (title, description) by mistake, or
+    // conversely a naive "children.length === 0" check would reject it
+    // outright since it DOES have 2 element children (icon + title div).
+    setBody(
+      '<div id="container" data-text-ad="1">' +
+        '<a class="sVXRqc" href="https://example.com/lp">' +
+        '<div role="heading"><span>Headline Text</span></div>' +
+        "<div><span>Advertiser</span><span>https://example.com</span></div>" +
+        "</a>" +
+        "<div>A real description block that is long enough to be picked up by the heuristic here.</div>" +
+        '<a class="tNxQIb" href="https://example.com/a"><span class="icon"><svg></svg></span><div class="title"><span>SEO Checker</span></div></a>' +
+        '<a class="tNxQIb" href="https://example.com/b"><span class="icon"><svg></svg></span><div class="title"><span>Try for Free</span></div></a>' +
+        '<a class="tNxQIb" href="https://example.com/c"><span class="icon"><svg></svg></span><div class="title"><span>Site Audit</span></div></a>' +
+        "</div>",
+    );
+    const { items } = extractGoogleAdText(document.getElementById("container"));
+    const callouts = items.filter((i) => i.label.startsWith("Callout"));
+    expect(callouts.map((c) => c.body)).toEqual(["SEO Checker", "Try for Free", "Site Audit"]);
+  });
 });
 
 describe("extractRealDestinationUrl", () => {
@@ -274,6 +298,14 @@ describe("extractRealDestinationUrl", () => {
 
   it("returns an empty string for a null/missing anchor", () => {
     expect(extractRealDestinationUrl(null)).toBe("");
+  });
+
+  it("falls back to href when data-rw's adurl param is present but empty (real ad, 2026-07-23: Shopify's data-rw ends in a bare 'adurl' with no value)", () => {
+    setBody(
+      '<a id="link" href="https://www.shopify.com/blog/seo-tracking" ' +
+        'data-rw="https://www.google.com/aclk?sa=L&nis=4&adurl">text</a>',
+    );
+    expect(extractRealDestinationUrl(document.getElementById("link"))).toBe("https://www.shopify.com/blog/seo-tracking");
   });
 
   it("prefers data-rw's fuller UTM-tagged redirect over a clean, direct href (real bug, 2026-07-23: 'SaaS Growth Playbook' ad)", () => {
